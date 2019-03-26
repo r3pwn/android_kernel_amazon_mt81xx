@@ -510,6 +510,42 @@ config SRAM
 	  the genalloc API. It is supposed to be used for small on-chip SRAM
 	  areas found on many SoCs.
 
+config MDUMP
+	bool "Generic memory dump"
+	default n
+	help
+	  The module allow support mdump feature, It need bootloader support. when
+	  panic, it will do a mark, and bootloader can store all memory to analyze.
+
+	  If unsure, say N.
+
+config MDUMP_COMPRESS
+	bool "Compress memory dump"
+	default n
+	help
+	  The module supports compressed ramdump, which allows ramdump to be written
+	  to userdata partition instead of a dedicate DUMP partition.
+
+	  If unsure, say N.
+
+config MDUMP_BUFFER_ADDRESS
+	hex "MDUMP Memory Buffer Address"
+	default 0x4BFC0000
+	depends on MDUMP
+	help
+	  Set mdump buffer address for mdump module. This address will share with bootloader
+	  Make sure you also changed this value on bootloader config code
+
+config MDUMP_MESSAGE_SIZE
+	hex "MDUMP Memory Buffer Message Size"
+	default 0x10000
+	depends on MDUMP
+	help
+	  Set mdump buffer size for mdump module. This size will share with bootloader
+	  Make sure you also changed this value on bootloader config code
+	  There are two stage messages. So mdump buffer's real size is MDUMP_MESSAGE_SIZE * 2
+
+
 config VEXPRESS_SYSCFG
 	bool "Versatile Express System Configuration driver"
 	depends on VEXPRESS_CONFIG
@@ -524,6 +560,85 @@ config UID_CPUTIME
 	depends on PROFILING
 	help
 	  Per UID based cpu time statistics exported to /proc/uid_cputime
+
+config SND_HEADSET_TS3A225E
+	tristate "TI TS3A225E OMTP/CTIA Headset Switch"
+	depends on I2C
+	default n
+
+config IDME
+	bool "IDME support"
+	depends on PROC_FS
+	help
+	  Select Y here to enable IDME support to read the data
+	  via userspace (i.e. /proc/idme/* entries)
+
+config ALS_ISL29034
+	tristate "ISL29034 support"
+	depends on I2C
+	help
+		Support for Intersil ISL29034 Ambient Light Sensor
+	default n
+
+config ALS_TSL2583
+	tristate "TAOS TSL2580, TSL2581, TSL2583 and TSL2584TSV light-to-digital converters"
+	depends on I2C
+	help
+		Provides support for the TAOS tsl2580, tsl2581, tsl2583
+		and tsl2584tsv devices.
+
+		Access ALS data via iio, sysfs.
+	default n
+
+config AMZN_AMS_ALS
+	bool "Calibrated Lux support for AMS TSL2584TSV"
+	help
+		Provides support for combining lux calibration data with
+		read lux values for the AMS TSL2584TSV ALS.
+
+	default n
+
+config AMS_ADJUST_WITH_BASELINE
+	bool "Use baseline in lux calculation for AMS TSL2584TSV"
+	help
+		Adjust channel values with a baseline programmed at factory
+	default n
+
+config ALS_TSL2584_AUTOZERO
+	bool "Enable periodic autozero of AMS TSL2584TSV"
+	depends on ALS_TSL2583
+	help
+		Enables periodically running an autozero sequence for
+		the AMS TSL2584TSV ALS.
+	default n
+
+config SENSORS_TSL2540
+	tristate "TAOS TSL2540 ALS"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for the TAOS tsl2540,
+	  ALS light sensors.
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called tsl2540.
+
+config AMZ_PRIV
+       bool "Enable Amazon Privacy Mode Support"
+       default n
+       help
+         This option enables the kernel to support Amazon Privacy Mode
+
+config SILENT_OTA
+	tristate "Key to turn on backlight for silent ota"
+	default n
+	depends on INPUT
+	select INPUT_KEYCOMBO
+	---help---
+	  Say Y here if you want to turn on backlight when some keys are pressed;
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

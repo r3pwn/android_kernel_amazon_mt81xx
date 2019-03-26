@@ -9,7 +9,7 @@
 #include <linux/err.h>
 #include <linux/syscalls.h>
 #include "mt-plat/mtk_thermal_monitor.h"
-#include <charging.h>
+#include <mach/charging.h>
 #include <tmp_battery.h>
 #include <linux/uidgid.h>
 
@@ -301,6 +301,8 @@ static ssize_t _cl_bcct_write(struct file *filp, const char __user *buf, size_t 
 	/* int ret = 0; */
 	char tmp[128] = { 0 };
 	int klog_on, limit0, limit1, limit2;
+
+	len = (len < (128-1)) ? len : (128-1);
 
 	/* write data to the buffer */
 	if (copy_from_user(tmp, buf, len))

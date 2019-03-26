@@ -8,3 +8,6 @@ config MTK_CLKMGR
           disabling, and querying status. If this config is not set,
           system will use COMMON_CLK instead.
 
+config EXT_BUCK_I2C_LOW_SPD
+	bool "Deep idle use low speed i2c for external buck"
+	default n

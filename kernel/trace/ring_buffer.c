@@ -27,13 +27,8 @@
 
 #include <asm/local.h>
 
-/* for debug only */
-#if defined(CONFIG_MT_ENG_BUILD) && (defined(CONFIG_ARCH_MT6735) || defined(CONFIG_ARCH_MT6735M))
-#define FTRACE_KE_DEBUG_ENABLE
-#endif
-
-#ifdef FTRACE_KE_DEBUG_ENABLE  /* for debug only */
-#include <linux/vmalloc.h>
+#ifdef CONFIG_MTK_EXTMEM
+#include <linux/exm_driver.h>
 #endif
 
 static void update_pages_handler(struct work_struct *work);
@@ -406,8 +401,8 @@ size_t ring_buffer_page_len(void *page)
  */
 static void free_buffer_page(struct buffer_page *bpage)
 {
-#ifdef FTRACE_KE_DEBUG_ENABLE /* for debug only */
-	vfree((const void *)bpage->page);
+#ifdef CONFIG_MTK_EXTMEM
+	extmem_free((void *)bpage->page);
 #else
 	free_page((unsigned long)bpage->page);
 #endif
@@ -1184,7 +1179,7 @@ static int __rb_allocate_pages(int nr_pages, struct list_head *pages, int cpu)
 	struct buffer_page *bpage, *tmp;
 
 	for (i = 0; i < nr_pages; i++) {
-#ifndef FTRACE_KE_DEBUG_ENABLE /* for debug only */
+#if !defined(CONFIG_MTK_EXTMEM)
 		struct page *page;
 #endif
 		/*
@@ -1200,10 +1195,12 @@ static int __rb_allocate_pages(int nr_pages, struct list_head *pages, int cpu)
 
 		list_add(&bpage->list, pages);
 
-#ifdef FTRACE_KE_DEBUG_ENABLE /* for debug only */
-		bpage->page = vmalloc(PAGE_SIZE);
-		if (bpage->page == NULL)
+#ifdef CONFIG_MTK_EXTMEM
+		bpage->page = extmem_malloc_page_align(PAGE_SIZE);
+		if (bpage->page == NULL) {
+			pr_err("%s[%s] ext memory alloc failed!!!\n", __FILE__, __func__);
 			goto free_pages;
+		}
 #else
 		page = alloc_pages_node(cpu_to_node(cpu),
 					GFP_KERNEL | __GFP_NORETRY, 0);
@@ -1255,7 +1252,7 @@ rb_allocate_cpu_buffer(struct ring_buffer *buffer, int nr_pages, int cpu)
 {
 	struct ring_buffer_per_cpu *cpu_buffer;
 	struct buffer_page *bpage;
-#ifndef FTRACE_KE_DEBUG_ENABLE /* for debug only */
+#if !defined(CONFIG_MTK_EXTMEM)
 	struct page *page;
 #endif
 	int ret;
@@ -1284,8 +1281,8 @@ rb_allocate_cpu_buffer(struct ring_buffer *buffer, int nr_pages, int cpu)
 	rb_check_bpage(cpu_buffer, bpage);
 
 	cpu_buffer->reader_page = bpage;
-#ifdef FTRACE_KE_DEBUG_ENABLE /* for debug only */
-	bpage->page = vmalloc(PAGE_SIZE);
+#ifdef CONFIG_MTK_EXTMEM
+	bpage->page = extmem_malloc_page_align(PAGE_SIZE);
 	if (bpage->page == NULL)
 		goto fail_free_reader;
 #else
@@ -1722,14 +1719,13 @@ int ring_buffer_resize(struct ring_buffer *buffer, unsigned long size,
 	    !cpumask_test_cpu(cpu_id, buffer->cpumask))
 		return size;
 
-	size = DIV_ROUND_UP(size, BUF_PAGE_SIZE);
-	size *= BUF_PAGE_SIZE;
+	nr_pages = DIV_ROUND_UP(size, BUF_PAGE_SIZE);
 
 	/* we need a minimum of two pages */
-	if (size < BUF_PAGE_SIZE * 2)
-		size = BUF_PAGE_SIZE * 2;
+	if (nr_pages < 2)
+		nr_pages = 2;
 
-	nr_pages = DIV_ROUND_UP(size, BUF_PAGE_SIZE);
+	size = nr_pages * BUF_PAGE_SIZE;
 
 	/*
 	 * Don't succeed if resizing is disabled, as a reader might be
@@ -3442,15 +3438,6 @@ static void rb_iter_reset(struct ring_buffer_iter *iter)
 	/* Iterator usage is expected to have record disabled */
 	iter->head_page = cpu_buffer->reader_page;
 	iter->head = cpu_buffer->reader_page->read;
-#ifdef FTRACE_KE_DEBUG_ENABLE /* for debug only */
-	if (iter->head > PAGE_SIZE) {
-		pr_err("[LCH_DEBUG]cpu_buffer:%p, cpu_buffer->reader_page:%p\n",
-				cpu_buffer, cpu_buffer->reader_page);
-		pr_err("[LCH_DEBUG]rb_iter_reset iter->head %ld over PAGE_SIZE, call bug\n", iter->head);
-		dump_stack();
-		BUG();
-	}
-#endif
 
 	iter->cache_reader_page = iter->head_page;
 	iter->cache_read = cpu_buffer->read;
@@ -3748,14 +3735,6 @@ static void rb_advance_iter(struct ring_buffer_iter *iter)
 	rb_update_iter_read_stamp(iter, event);
 
 	iter->head += length;
-#ifdef FTRACE_KE_DEBUG_ENABLE /* for debug only */
-	if (iter->head > PAGE_SIZE) {
-		pr_err("[LCH_DEBUG]event:%p, length:%u, head_page:%p\n", event, length, iter->head_page);
-		pr_err("[LCH_DEBUG]rb_advance_iter iter->head %ld over PAGE_SIZE, call bug\n", iter->head);
-		dump_stack();
-		BUG();
-	}
-#endif
 
 	/* check for end of page padding */
 	if ((iter->head >= rb_page_size(iter->head_page)) &&
@@ -4469,22 +4448,14 @@ EXPORT_SYMBOL_GPL(ring_buffer_swap_cpu);
 void *ring_buffer_alloc_read_page(struct ring_buffer *buffer, int cpu)
 {
 	struct buffer_data_page *bpage;
-#ifndef FTRACE_KE_DEBUG_ENABLE /* for debug only */
 	struct page *page;
-#endif
 
-#ifdef FTRACE_KE_DEBUG_ENABLE /* for debug only */
-	bpage = vmalloc(PAGE_SIZE);
-	if (bpage == NULL)
-		return NULL;
-#else
 	page = alloc_pages_node(cpu_to_node(cpu),
 				GFP_KERNEL | __GFP_NORETRY, 0);
 	if (!page)
 		return NULL;
 
 	bpage = page_address(page);
-#endif
 
 	rb_init_page(bpage);
 
@@ -4501,11 +4472,7 @@ EXPORT_SYMBOL_GPL(ring_buffer_alloc_read_page);
  */
 void ring_buffer_free_read_page(struct ring_buffer *buffer, void *data)
 {
-#ifdef FTRACE_KE_DEBUG_ENABLE /* for debug only */
-	vfree((const void *)data);
-#else
 	free_page((unsigned long)data);
-#endif
 }
 EXPORT_SYMBOL_GPL(ring_buffer_free_read_page);
 

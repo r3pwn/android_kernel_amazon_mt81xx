@@ -5,9 +5,6 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/cmdq/v2/$(MTK_PLATFORM) \
              -I$(srctree)/drivers/misc/mediatek/smi/ \
              -I$(srctree)/drivers/misc/mediatek/mach/$(MTK_PLATFORM)/include
 
-# Enable AEE
-ccflags-y += -DCMDQ_AEE_READY
-
 # Enable MET
 ccflags-y += -DMET_USER_EVENT_SUPPORT
 
@@ -44,8 +41,21 @@ endif
 endif
 
 # platform dependent definition
-ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6735"))
-ccflags-$(CONFIG_MTK_SMI_EXT) += -DCMDQ_CONFIG_SMI
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6795" "mt6735"))
+ccflags-$(CONFIG_MTK_SMI) += -DCMDQ_CONFIG_SMI
+endif
+
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6795"))
+ccflags-y += -DCMDQ_USE_LEGACY
+endif
+
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6795" "mt6752"))
+ccflags-y += -DCMDQ_CG_M4U_LARB0
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/m4u/$(MTK_PLATFORM)
+endif
+
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6752"))
+ccflags-y += -DCMDQ_SPECIAL_ESD_PRIORITY
 endif
 
 ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6580"))
@@ -55,8 +65,6 @@ endif
 # ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6755"))
 # ccflags-$(CONFIG_MTK_MET) += -DCMDQ_MDP_MET_STATUS
 # endif
-
-ccflags-y += -D_CMDQ_DISABLE_MARKER_
 
 ifneq ($(CONFIG_MTK_CMDQ_TAB),y)
 # driver module

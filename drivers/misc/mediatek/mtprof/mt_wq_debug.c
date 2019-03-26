@@ -1,3 +1,5 @@
+#define DEBUG 1
+
 #include <asm/uaccess.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -83,7 +85,7 @@ static ssize_t mt_wq_log_write(struct file *filp, const char *ubuf, size_t cnt, 
 	int log_queue_work = 0, log_activate_work = 0, log_execute_work = 0;
 	char buf[64];
 
-	if (cnt >= sizeof(buf))
+	if (cnt > sizeof(buf))
 		return -EINVAL;
 
 	if (copy_from_user(&buf, ubuf, cnt))

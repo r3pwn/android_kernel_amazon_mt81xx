@@ -20,7 +20,6 @@
 #include <asm/io.h>
 
 #include <linux/vmalloc.h>
-#include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/hardirq.h>
@@ -65,7 +64,7 @@ static bool mmp_trace_log_on;
 			pr_debug("MMP:%s(): "fmt"\n", __func__, ##arg); \
 	} while (0)
 
-#define MMP_MSG(fmt, arg...) pr_warn("MMP: %s(): "fmt"\n", __func__, ##arg)
+#define MMP_MSG(fmt, arg...) pr_notice("MMP: %s(): "fmt"\n", __func__, ##arg)
 
 typedef struct {
 	MMProfile_EventInfo_t event_info;
@@ -562,7 +561,7 @@ static int MMProfileConfigEvent(MMP_Event event, char *name, MMP_Event parent, i
 		mutex_unlock(&MMProfile_RegTableMutex);
 		return 1;
 	}
-	pRegTable = kmalloc(sizeof(MMProfile_RegTable_t), GFP_KERNEL);
+	pRegTable = vmalloc(sizeof(MMProfile_RegTable_t));
 	if (!pRegTable) {
 		mutex_unlock(&MMProfile_RegTableMutex);
 		return 0;
@@ -648,8 +647,11 @@ static inline void mmp_kernel_trace_counter(char *name, int count)
 /* continue to use 32-bit value to store time value (separate into 2) */
 static void system_time(unsigned int *low, unsigned int *high)
 {
+#ifdef CONFIG_64BIT
+	unsigned long temp;
+#else
 	unsigned long long temp;
-
+#endif
 	temp = sched_clock();
 	*low = (unsigned int)(temp & 0xffffffff);
 	*high = (unsigned int)((temp >> 32) & 0xffffffff);
@@ -664,6 +666,9 @@ static void MMProfileLog_Int(MMP_Event event, MMP_LogType type, unsigned long da
 	size_t size;
 
 	if (!MMProfileGlobals.enable)
+		return;
+	if ((event >= MMP_MaxStaticEvent) ||
+		(event >= MMProfileMaxEventCount) || (event == MMP_InvalidEvent))
 		return;
 	if (bMMProfileInitBuffer && MMProfileGlobals.start
 	    && (MMProfileGlobals.event_state[event] & MMP_EVENT_STATE_ENABLED)) {
@@ -741,6 +746,9 @@ static long MMProfileLogMetaInt(MMP_Event event, MMP_LogType type, MMP_MetaData_
 	unsigned long retn;
 
 	if (!MMProfileGlobals.enable)
+		return 0;
+	if ((event >= MMP_MaxStaticEvent) ||
+		(event >= MMProfileMaxEventCount) || (event == MMP_InvalidEvent))
 		return 0;
 	if (bMMProfileInitBuffer && MMProfileGlobals.start
 	    && (MMProfileGlobals.event_state[event] & MMP_EVENT_STATE_ENABLED)) {
@@ -871,7 +879,7 @@ MMP_Event MMProfileRegisterEvent(MMP_Event parent, const char *name)
 		return 0;
 	}
 	/* Now register the new event. */
-	pRegTable = kmalloc(sizeof(MMProfile_RegTable_t), GFP_KERNEL);
+	pRegTable = vmalloc(sizeof(MMProfile_RegTable_t));
 	if (!pRegTable) {
 		mutex_unlock(&MMProfile_RegTableMutex);
 		return 0;
@@ -962,7 +970,8 @@ long MMProfileQueryEnable(MMP_Event event)
 {
 	if (!MMProfileGlobals.enable)
 		return 0;
-	if (event == MMP_InvalidEvent)
+	if ((event >= MMP_MaxStaticEvent) ||
+		(event >= MMProfileMaxEventCount) || (event == MMP_InvalidEvent))
 		return MMProfileGlobals.enable;
 	return !!(MMProfileGlobals.event_state[event] & MMP_EVENT_STATE_ENABLED);
 }
@@ -999,6 +1008,9 @@ long MMProfileLogMetaStructure(MMP_Event event, MMP_LogType type,
 		return 0;
 	if (in_interrupt())
 		return 0;
+	if ((event >= MMP_MaxStaticEvent) ||
+		(event >= MMProfileMaxEventCount) || (event == MMP_InvalidEvent))
+		return 0;
 	if (bMMProfileInitBuffer && MMProfileGlobals.start
 	    && (MMProfileGlobals.event_state[event] & MMP_EVENT_STATE_ENABLED)) {
 		MMP_MetaData_t MetaData;
@@ -1028,6 +1040,9 @@ long MMProfileLogMetaStringEx(MMP_Event event, MMP_LogType type, unsigned long d
 	if (!MMProfileGlobals.enable)
 		return 0;
 	if (in_interrupt())
+		return 0;
+	if ((event >= MMP_MaxStaticEvent) ||
+		(event >= MMProfileMaxEventCount) || (event == MMP_InvalidEvent))
 		return 0;
 	if (bMMProfileInitBuffer && MMProfileGlobals.start
 	    && (MMProfileGlobals.event_state[event] & MMP_EVENT_STATE_ENABLED)) {
@@ -1061,6 +1076,9 @@ long MMProfileLogMetaBitmap(MMP_Event event, MMP_LogType type, MMP_MetaDataBitma
 	if (!MMProfileGlobals.enable)
 		return 0;
 	if (in_interrupt())
+		return 0;
+	if ((event >= MMP_MaxStaticEvent) ||
+		(event >= MMProfileMaxEventCount) || (event == MMP_InvalidEvent))
 		return 0;
 	if (bMMProfileInitBuffer && MMProfileGlobals.start
 	    && (MMProfileGlobals.event_state[event] & MMP_EVENT_STATE_ENABLED)) {
@@ -1363,12 +1381,9 @@ static long mmprofile_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		break;
 	case MMP_IOC_TIME:
 		{
-			unsigned int time_low;
-			unsigned int time_high;
 			unsigned long long time;
 
-			system_time(&time_low, &time_high);
-			time = time_low + ((unsigned long long)time_high << 32);
+			system_time((unsigned int *)(&time), ((unsigned int *)(&time)) + 1);
 			put_user(time, (unsigned long long *)arg);
 		}
 		break;
@@ -1378,7 +1393,6 @@ static long mmprofile_ioctl(struct file *file, unsigned int cmd, unsigned long a
 
 			retn =
 			    copy_from_user(&event_info, (void *)arg, sizeof(MMProfile_EventInfo_t));
-			event_info.name[MMProfileEventNameMaxLen] = 0;
 			event_info.parentId =
 			    MMProfileRegisterEvent(event_info.parentId, event_info.name);
 			retn =
@@ -1391,7 +1405,6 @@ static long mmprofile_ioctl(struct file *file, unsigned int cmd, unsigned long a
 
 			retn =
 			    copy_from_user(&event_info, (void *)arg, sizeof(MMProfile_EventInfo_t));
-			event_info.name[MMProfileEventNameMaxLen] = 0;
 			mutex_lock(&MMProfile_RegTableMutex);
 			event_info.parentId =
 			    MMProfileFindEventInt(event_info.parentId, event_info.name);
@@ -1538,8 +1551,11 @@ static long mmprofile_ioctl(struct file *file, unsigned int cmd, unsigned long a
 		if ((!MMProfileGlobals.enable) ||
 		    (!bMMProfileInitBuffer) ||
 		    (!MMProfileGlobals.start) ||
+		    (arg >= MMP_MaxStaticEvent) ||
 		    (arg >= MMProfileMaxEventCount) ||
-		    (!(MMProfileGlobals.event_state[arg] & MMP_EVENT_STATE_ENABLED)))
+		    (arg == MMP_InvalidEvent))
+			ret = -EINVAL;
+		else if (!(MMProfileGlobals.event_state[arg] & MMP_EVENT_STATE_ENABLED))
 			ret = -EINVAL;
 		break;
 	case MMP_IOC_ISENABLE:
@@ -1561,7 +1577,7 @@ static long mmprofile_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	return ret;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_64BIT
 static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -1588,12 +1604,9 @@ static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd, unsigned
 		break;
 	case MMP_IOC_TIME:
 		{
-			unsigned int time_low;
-			unsigned int time_high;
 			unsigned long long time;
 
-			system_time(&time_low, &time_high);
-			time = time_low + ((unsigned long long)time_high << 32);
+			system_time((unsigned int *)(&time), ((unsigned int *)(&time)) + 1);
 			put_user(time, (unsigned long long *)arg);
 		}
 		break;
@@ -1603,7 +1616,6 @@ static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd, unsigned
 
 			retn =
 			    copy_from_user(&event_info, (void *)arg, sizeof(MMProfile_EventInfo_t));
-			event_info.name[MMProfileEventNameMaxLen] = 0;
 			event_info.parentId =
 			    MMProfileRegisterEvent(event_info.parentId, event_info.name);
 			retn =
@@ -1616,7 +1628,6 @@ static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd, unsigned
 
 			retn =
 			    copy_from_user(&event_info, (void *)arg, sizeof(MMProfile_EventInfo_t));
-			event_info.name[MMProfileEventNameMaxLen] = 0;
 			mutex_lock(&MMProfile_RegTableMutex);
 			event_info.parentId =
 			    MMProfileFindEventInt(event_info.parentId, event_info.name);
@@ -1763,8 +1774,11 @@ static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd, unsigned
 		if ((!MMProfileGlobals.enable) ||
 		    (!bMMProfileInitBuffer) ||
 		    (!MMProfileGlobals.start) ||
+		    (arg >= MMP_MaxStaticEvent) ||
 		    (arg >= MMProfileMaxEventCount) ||
-		    (!(MMProfileGlobals.event_state[arg] & MMP_EVENT_STATE_ENABLED)))
+		    (arg == MMP_InvalidEvent))
+			ret = -EINVAL;
+		else if (!(MMProfileGlobals.event_state[arg] & MMP_EVENT_STATE_ENABLED))
 			ret = -EINVAL;
 		break;
 	case MMP_IOC_ISENABLE:
@@ -1786,6 +1800,7 @@ static long mmprofile_ioctl_compat(struct file *file, unsigned int cmd, unsigned
 	return ret;
 }
 #endif
+
 
 static int mmprofile_mmap(struct file *file, struct vm_area_struct *vma)
 {
@@ -1845,8 +1860,10 @@ const struct file_operations mmprofile_fops = {
 	.read = mmprofile_read,
 	.write = mmprofile_write,
 	.mmap = mmprofile_mmap,
+#ifdef CONFIG_64BIT
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = mmprofile_ioctl_compat,
+#endif
 #endif
 };
 

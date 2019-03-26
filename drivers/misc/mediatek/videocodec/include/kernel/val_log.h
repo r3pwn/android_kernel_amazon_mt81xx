@@ -6,7 +6,6 @@ extern "C" {
 #endif
 
 #include <linux/kernel.h>
-/* #include <linux/xlog.h> */
 
 
 #define MFV_LOG_ERROR   /* error */
@@ -33,7 +32,7 @@ extern "C" {
 
 #define MFV_LOG_INFO   /* info information */
 #ifdef MFV_LOG_INFO
-#define MODULE_MFV_LOGI(...) pr_debug(__VA_ARGS__)
+#define MODULE_MFV_LOGI(...) pr_info(__VA_ARGS__)
 #else
 #define MODULE_MFV_LOGI(...)
 #endif

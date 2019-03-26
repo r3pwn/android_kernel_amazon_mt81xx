@@ -10,6 +10,7 @@
 #include <linux/workqueue.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/suspend.h>
 
 #include <linux/i2c.h>
 #include <linux/irq.h>
@@ -120,7 +121,9 @@ struct acc_context {
 	bool			is_active_data;		/* Active and HAL need data . */
 	bool is_first_data_after_enable;
 	bool is_polling_run;
+	bool is_need_restore_polling;
 	bool is_batch_enable;	/* version2.this is used for judging whether sensor is in batch mode */
+	struct notifier_block acc_pm_notify;
 };
 
 

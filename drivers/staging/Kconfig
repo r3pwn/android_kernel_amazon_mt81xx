@@ -108,6 +108,6 @@ source "drivers/staging/skein/Kconfig"
 
 source "drivers/staging/unisys/Kconfig"
 
-source "drivers/staging/imgtec/Kconfig"
+source "drivers/staging/amazon/Kconfig"
 
 endif # STAGING

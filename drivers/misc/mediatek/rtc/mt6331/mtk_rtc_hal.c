@@ -39,7 +39,6 @@
 #endif
 
 #include <mt_gpio.h>
-#include <mt-plat/charging.h>
 
 #define hal_rtc_xinfo(fmt, args...)		\
 	pr_notice(fmt, ##args)
@@ -52,6 +51,9 @@
 
 /* Causion, for SRCLKENA drop speed too slow (align VIO18) to cause current leakage for 32K less */
 #define GPIO_SRCLKEN_PIN (148|0x80000000) /*for readability*/
+
+/*TODO extern bool pmic_chrdet_status(void);*/
+
 
 /*
 	RTC_FGSOC = 0,
@@ -200,7 +202,8 @@ void hal_rtc_bbpu_pwdn(void)
 	}
 	ret_val = hal_rtc_get_spare_register(RTC_32K_LESS);
 	#if !defined(CONFIG_MTK_FPGA)
-	if (!ret_val && pmic_chrdet_status() == KAL_FALSE) {
+	/*TODO if (!ret_val && pmic_chrdet_status() == false) {*/
+	if (!ret_val) {
 		/* 1.	Set SRCLKENAs GPIO GPIO as Output Mode, Output Low */
 		mt_set_gpio_dir(GPIO_SRCLKEN_PIN, GPIO_DIR_OUT);
 		mt_set_gpio_out(GPIO_SRCLKEN_PIN, GPIO_OUT_ZERO);

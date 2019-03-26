@@ -30,7 +30,6 @@
 
 static unsigned int EINT_IRQ_BASE;
 
-
 #ifdef CONFIG_MTK_LEGACY
 #if 0	/* disable MD_EINT temporarily, since modem module is not ready yet */
 #define MD_EINT
@@ -61,8 +60,6 @@ enum {
 	ERR_SIM_HOT_PLUG_QUERY_STRING,
 } sim_hot_plug_eint_queryErr;
 #endif
-
-
 
 struct eint_func {
 	unsigned int *eint_auto_umask;
@@ -97,12 +94,7 @@ static unsigned int mapping_table_entry;
 static unsigned int builtin_entry;
 static struct builtin_eint *builtin_mapping;
 
-#ifndef CONFIG_HAS_EARLYSUSPEND
-struct wakeup_source EINT_suspend_lock;
-#else
 struct wake_lock EINT_suspend_lock;
-#endif
-
 
 struct deint_des {
 	int eint_num;
@@ -119,22 +111,18 @@ static unsigned int mt_eint_flip_edge(struct eint_chip *chip, unsigned int eint_
 static void mt_eint_clr_deint_selection(u32 deint_mapped)
 {
 	if (deint_mapped < 4)
-		writel(0xff << (deint_mapped * 8),
-			IOMEM(DEINT_SEL_CLR_BASE));
+		writel(0xff << (deint_mapped * 8), IOMEM(DEINT_SEL_CLR_BASE));
 	else if ((deint_mapped >= 4) && (deint_mapped < 8))
-		writel(0xff << ((deint_mapped-4) * 8),
-			IOMEM(DEINT_SEL_CLR_BASE + 4));
+		writel(0xff << (deint_mapped * 8), IOMEM(DEINT_SEL_CLR_BASE + 4));
 }
 
 static void mt_eint_set_deint_selection(u32 eint_num, u32 deint_mapped)
 {
 	/* set our new deint_sel setting */
 	if (deint_mapped < 4)
-		writel((eint_num << (deint_mapped * 8)),
-			IOMEM(DEINT_SEL_SET_BASE));
+		writel((eint_num << (deint_mapped * 8)), IOMEM(DEINT_SEL_SET_BASE));
 	else if ((deint_mapped >= 4) && (deint_mapped < 8))
-		writel((eint_num << ((deint_mapped-4) * 8)),
-			IOMEM(DEINT_SEL_SET_BASE + 4));
+		writel((eint_num << (deint_mapped * 8)), IOMEM(DEINT_SEL_SET_BASE + 4));
 }
 
 static void mt_eint_enable_deint_selection(u32 deint_mapped)
@@ -183,28 +171,20 @@ int mt_eint_set_deint(u32 eint_num, u32 irq_num)
 		return -1;
 	}
 
-	if (irq_num < deint_possible_irq[0]) {
-		pr_err("%s: irq_num(%u) out of range\n", __func__, irq_num);
-		return -1;
+	/* first usable deint descriptor */
+	for (deint_mapped = 0; deint_mapped < MAX_DEINT_CNT; ++deint_mapped) {
+		if (deint_descriptors[deint_mapped].used == 0) {
+			deint_descriptors[deint_mapped].eint_num = eint_num;
+			deint_descriptors[deint_mapped].irq_num = irq_num;
+			deint_descriptors[deint_mapped].used = 1;
+			break;
+		}
 	}
 
-	deint_mapped = irq_num - deint_possible_irq[0];
-
-	if (deint_mapped >= MAX_DEINT_CNT) {
-		pr_err("%s: irq_num(%u) out of range\n", __func__, irq_num);
+	if (deint_mapped == MAX_DEINT_CNT) {
+		pr_err("%s: no idle deint now\n", __func__);
 		return -1;
 	}
-
-	/* check if usable deint descriptor */
-	if (deint_descriptors[deint_mapped].used == 0) {
-		deint_descriptors[deint_mapped].eint_num = eint_num;
-		deint_descriptors[deint_mapped].irq_num = irq_num;
-		deint_descriptors[deint_mapped].used = 1;
-	} else {
-		pr_err("%s: deint(%u) already in use\n", __func__, irq_num);
-		return -1;
-	}
-
 
 	for (i = 0; i < MAX_DEINT_CNT; ++i) {
 		if (deint_possible_irq[i] == irq_num)
@@ -841,11 +821,7 @@ void mt_eint_set_hw_debounce(unsigned int gpio_pin, unsigned int ms)
  */
 static void eint_do_tasklet(unsigned long unused)
 {
-#ifndef CONFIG_HAS_EARLYSUSPEND
-	__pm_wakeup_event(&EINT_suspend_lock, HZ / 2);
-#else
 	wake_lock_timeout(&EINT_suspend_lock, HZ / 2);
-#endif
 }
 
 DECLARE_TASKLET(eint_tasklet, eint_do_tasklet, 0);
@@ -1175,12 +1151,8 @@ static void setup_MD_eint(void)
 	md_sim_info[md_sim_counter].eint_sens = CUST_EINT_MD1_0_SENSITIVE;
 	md_sim_info[md_sim_counter].socket_type = get_type(md_sim_info[md_sim_counter].name);
 	md_sim_info[md_sim_counter].eint_deb = CUST_EINT_MD1_0_DEBOUNCE_CN;
-#ifdef CUST_EINT_MD1_0_DEDICATED_EN
 	md_sim_info[md_sim_counter].dedicatedEn = CUST_EINT_MD1_0_DEDICATED_EN;
-#endif
-#ifdef CUST_EINT_MD1_0_SRCPIN
 	md_sim_info[md_sim_counter].srcPin = CUST_EINT_MD1_0_SRCPIN;
-#endif
 	pr_debug("[EINT] MD1 name = %s\n", md_sim_info[md_sim_counter].name);
 	pr_debug("[EINT] MD1 type = %d\n", md_sim_info[md_sim_counter].socket_type);
 	md_sim_counter++;
@@ -1192,12 +1164,8 @@ static void setup_MD_eint(void)
 	md_sim_info[md_sim_counter].eint_sens = CUST_EINT_MD1_1_SENSITIVE;
 	md_sim_info[md_sim_counter].socket_type = get_type(md_sim_info[md_sim_counter].name);
 	md_sim_info[md_sim_counter].eint_deb = CUST_EINT_MD1_1_DEBOUNCE_CN;
-#ifdef CUST_EINT_MD1_1_DEDICATED_EN
 	md_sim_info[md_sim_counter].dedicatedEn = CUST_EINT_MD1_1_DEDICATED_EN;
-#endif
-#ifdef CUST_EINT_MD1_1_SRCPIN
 	md_sim_info[md_sim_counter].srcPin = CUST_EINT_MD1_1_SRCPIN;
-#endif
 	pr_debug("[EINT] MD1 name = %s\n", md_sim_info[md_sim_counter].name);
 	pr_debug("[EINT] MD1 type = %d\n", md_sim_info[md_sim_counter].socket_type);
 	md_sim_counter++;
@@ -1209,12 +1177,8 @@ static void setup_MD_eint(void)
 	md_sim_info[md_sim_counter].eint_sens = CUST_EINT_MD1_2_SENSITIVE;
 	md_sim_info[md_sim_counter].socket_type = get_type(md_sim_info[md_sim_counter].name);
 	md_sim_info[md_sim_counter].eint_deb = CUST_EINT_MD1_2_DEBOUNCE_CN;
-#ifdef CUST_EINT_MD1_2_DEDICATED_EN
 	md_sim_info[md_sim_counter].dedicatedEn = CUST_EINT_MD1_2_DEDICATED_EN;
-#endif
-#ifdef CUST_EINT_MD1_2_SRCPIN
 	md_sim_info[md_sim_counter].srcPin = CUST_EINT_MD1_2_SRCPIN;
-#endif
 	pr_debug("[EINT] MD1 name = %s\n", md_sim_info[md_sim_counter].name);
 	pr_debug("[EINT] MD1 type = %d\n", md_sim_info[md_sim_counter].socket_type);
 	md_sim_counter++;
@@ -1226,12 +1190,8 @@ static void setup_MD_eint(void)
 	md_sim_info[md_sim_counter].eint_sens = CUST_EINT_MD1_3_SENSITIVE;
 	md_sim_info[md_sim_counter].socket_type = get_type(md_sim_info[md_sim_counter].name);
 	md_sim_info[md_sim_counter].eint_deb = CUST_EINT_MD1_3_DEBOUNCE_CN;
-#ifdef CUST_EINT_MD1_3_DEDICATED_EN
 	md_sim_info[md_sim_counter].dedicatedEn = CUST_EINT_MD1_3_DEDICATED_EN;
-#endif
-#ifdef CUST_EINT_MD1_3_SRCPIN
 	md_sim_info[md_sim_counter].srcPin = CUST_EINT_MD1_3_SRCPIN;
-#endif
 	pr_debug("[EINT] MD1 name = %s\n", md_sim_info[md_sim_counter].name);
 	pr_debug("[EINT] MD1 type = %d\n", md_sim_info[md_sim_counter].socket_type);
 	md_sim_counter++;
@@ -1384,10 +1344,8 @@ unsigned int mt_gpio_to_irq(unsigned int gpio)
 	if (builtin_entry > 0) {
 		for (i = 0; i < builtin_entry; ++i) {
 			if (gpio == builtin_mapping[i].gpio) {
-				if (mt_get_gpio_mode(gpio) ==
-					builtin_mapping[i].func_mode)
-					return builtin_mapping[i].builtin_eint +
-						EINT_IRQ_BASE;
+				if (mt_get_gpio_mode(gpio) == builtin_mapping[i].func_mode)
+					return builtin_mapping[i].builtin_eint + EINT_IRQ_BASE;
 			}
 		}
 	}
@@ -1459,8 +1417,7 @@ static int mt_eint_get_level(unsigned int eint_num)
 	return level;
 }
 
-static unsigned int mt_eint_flip_edge(struct eint_chip *chip,
-				unsigned int eint_num)
+static unsigned int mt_eint_flip_edge(struct eint_chip *chip, unsigned int eint_num)
 {
 	unsigned int level = mt_eint_get_level(eint_num);
 	unsigned int prev_mask = mt_eint_get_mask(eint_num);
@@ -1519,8 +1476,7 @@ static struct irq_chip mt_irq_eint = {
 int mt_eint_domain_xlate_onetwocell(struct irq_domain *d,
 				    struct device_node *ctrlr,
 				    const u32 *intspec, unsigned int intsize,
-				    unsigned long *out_hwirq,
-				unsigned int *out_type)
+				    unsigned long *out_hwirq, unsigned int *out_type)
 {
 	if (WARN_ON(intsize < 1))
 		return -EINVAL;
@@ -1533,38 +1489,6 @@ const struct irq_domain_ops mt_eint_domain_simple_ops = {
 	.xlate = mt_eint_domain_xlate_onetwocell,
 };
 
-
-
-/*
- * mt_eint_soft_clr: Unmask the specified EINT number.
- * @eint_num: EINT number to clear
- */
-static void mt_eint_soft_clr(unsigned int eint_num)
-{
-	unsigned long base;
-	unsigned int bit = 1 << (eint_num % 32);
-
-	if (eint_num < EINT_MAX_CHANNEL) {
-		base = (eint_num / 32) * 4 + EINT_SOFT_CLR_BASE;
-	} else {
-		dbgmsg("Err in %s [EINT] num:%d is larger than MAX_CHANNEL\n",
-			__func__, eint_num);
-		return;
-	}
-	writel(bit, IOMEM(base));
-	dbgmsg("[EINT] soft clr addr:%x = %x\n", base, bit);
-}
-
-
-void mt_eint_virq_soft_clr(unsigned int virq)
-{
-	unsigned int eint_num;
-
-	eint_num = virq - EINT_IRQ_BASE;
-	mt_eint_soft_clr(eint_num);
-}
-EXPORT_SYMBOL(mt_eint_virq_soft_clr);
-
 static int __init mt_eint_init(void)
 {
 	unsigned int i, irq;
@@ -1575,7 +1499,7 @@ static int __init mt_eint_init(void)
 	u32 len;
 
 	/* DTS version */
-	node = of_find_compatible_node(NULL, NULL, "mediatek,mt-eic");
+	node = of_find_compatible_node(NULL, NULL, "mediatek,mt6735-eic");
 	if (node) {
 		EINT_BASE = of_iomap(node, 0);
 		pr_debug("get EINT_BASE @ %p\n", EINT_BASE);
@@ -1590,29 +1514,22 @@ static int __init mt_eint_init(void)
 		return -1;
 	}
 
-	if (of_property_read_u32(node, "mediatek,max_eint_num",
-				&EINT_MAX_CHANNEL))
+	if (of_property_read_u32(node, "mediatek,max_eint_num", &EINT_MAX_CHANNEL))
 		return -1;
 
 	pr_debug("[EIC] max_eint_num = %d\n", EINT_MAX_CHANNEL);
 
-	EINT_FUNC.eint_auto_umask = kmalloc(sizeof(unsigned int) *
-					EINT_MAX_CHANNEL, GFP_KERNEL);
-	EINT_FUNC.is_deb_en = kmalloc(sizeof(unsigned int) *
-					EINT_MAX_CHANNEL, GFP_KERNEL);
-	EINT_FUNC.deb_time = kmalloc(sizeof(unsigned int) *
-					EINT_MAX_CHANNEL, GFP_KERNEL);
+	EINT_FUNC.eint_auto_umask = kmalloc(sizeof(unsigned int) * EINT_MAX_CHANNEL, GFP_KERNEL);
+	EINT_FUNC.is_deb_en = kmalloc(sizeof(unsigned int) * EINT_MAX_CHANNEL, GFP_KERNEL);
+	EINT_FUNC.deb_time = kmalloc(sizeof(unsigned int) * EINT_MAX_CHANNEL, GFP_KERNEL);
 	EINT_FUNC.eint_sw_deb_timer =
 	    kmalloc(sizeof(struct timer_list) * EINT_MAX_CHANNEL, GFP_KERNEL);
-	EINT_FUNC.count = kmalloc(sizeof(unsigned int) * EINT_MAX_CHANNEL,
-					GFP_KERNEL);
+	EINT_FUNC.count = kmalloc(sizeof(unsigned int) * EINT_MAX_CHANNEL, GFP_KERNEL);
 	mt_eint_chip = kmalloc(sizeof(struct eint_chip), GFP_KERNEL);
 	mt_eint_chip->max_channel = EINT_MAX_CHANNEL;
-	mt_eint_chip->dual_edges = kcalloc(mt_eint_chip->max_channel,
-					sizeof(unsigned int), GFP_KERNEL);
+	mt_eint_chip->dual_edges = kcalloc(mt_eint_chip->max_channel, sizeof(unsigned int), GFP_KERNEL);
 
-	if (of_property_read_u32(node, "mediatek,mapping_table_entry",
-				&mapping_table_entry))
+	if (of_property_read_u32(node, "mediatek,mapping_table_entry", &mapping_table_entry))
 		return -1;
 
 	pr_debug("[EIC] mapping_table_entry = %d\n", mapping_table_entry);
@@ -1623,48 +1540,47 @@ static int __init mt_eint_init(void)
 			return -EINVAL;
 		len /= sizeof(*spec);
 
-		pr_debug("[EIC] mapping_table: spec=%d len=%d\n",
-			be32_to_cpup(spec), len);
+		pr_debug("[EIC] mapping_table: spec=%d len=%d\n", be32_to_cpup(spec), len);
 
 		pins = (struct pin_node *)
-		    kmalloc(sizeof(struct pin_node)*(mapping_table_entry + 1),
-				GFP_KERNEL);
+		    kmalloc(sizeof(struct pin_node) * (mapping_table_entry + 1), GFP_KERNEL);
 		for (i = 0; i < mapping_table_entry; i++) {
 			pr_debug
 			    ("[EIC] index=%d: gpio_pin=%d, eint_pin=%d\n",
-			     i, be32_to_cpup(spec + (i << 1)),
-				be32_to_cpup(spec + (i << 1) + 1));
+			     i, be32_to_cpup(spec + (i << 1)), be32_to_cpup(spec + (i << 1) + 1));
 			pins[i].gpio_pin = be32_to_cpup(spec + (i << 1));
 			pins[i].eint_pin = be32_to_cpup(spec + (i << 1) + 1);
 		}
 		pins[i].gpio_pin = GPIO_MAX;
 	}
 
-	if (of_property_read_u32(node, "mediatek,max_deint_cnt",
-				&MAX_DEINT_CNT)) {
+	if (of_property_read_u32(node, "mediatek,max_deint_cnt", &MAX_DEINT_CNT)) {
 		pr_warn("[EIC] no max_deint_cnt specified\n");
 	} else {
-		deint_possible_irq = kzalloc(
-					sizeof(u32)*MAX_DEINT_CNT, GFP_KERNEL);
+		deint_possible_irq = kzalloc(sizeof(u32) * MAX_DEINT_CNT, GFP_KERNEL);
+		if (!deint_possible_irq) {
+			pr_warn("[EIC] malloc fail for deint_possible_irq\n");
+			return -1;
+		}
 
-		deint_descriptors = kzalloc(
-					sizeof(struct deint_des)*MAX_DEINT_CNT,
-					GFP_KERNEL);
+		deint_descriptors = kzalloc(sizeof(struct deint_des) * MAX_DEINT_CNT, GFP_KERNEL);
 		if (!deint_descriptors)
 			return -1;
 
 		if (of_property_read_u32_array
-		    (node, "mediatek,deint_possible_irq",
-			deint_possible_irq, MAX_DEINT_CNT))
-			pr_warn("[EINT] deint function would fail...\n");
+		    (node, "mediatek,deint_possible_irq", deint_possible_irq, MAX_DEINT_CNT))
+			pr_warn
+			    ("[EINT] deint function would fail...since there is no <deint_possible_irq> in DTS\n");
 	}
 
-	if (of_property_read_u32(node, "mediatek,builtin_entry",
-				&builtin_entry)) {
+	if (of_property_read_u32(node, "mediatek,builtin_entry", &builtin_entry)) {
 		pr_warn("[EIC] no builtin_entry property\n");
 	} else {
-		builtin_mapping = kcalloc(builtin_entry,
-				sizeof(struct builtin_eint), GFP_KERNEL);
+		builtin_mapping = kcalloc(builtin_entry, sizeof(struct builtin_eint), GFP_KERNEL);
+		if (!builtin_mapping) {
+			pr_warn("[EIC] malloc fail for builtin_mapping\n");
+			return -1;
+		}
 
 		spec = of_get_property(node, "mediatek,builtin_mapping", &len);
 		if (spec == NULL)
@@ -1672,18 +1588,14 @@ static int __init mt_eint_init(void)
 
 		len /= sizeof(*spec);
 
-		pr_warn("[EIC] builtin_mapping: spec=%d, len=%d\n",
-				be32_to_cpup(spec), len);
+		pr_warn("[EIC] builtin_mapping: spec=%d, len=%d\n", be32_to_cpup(spec), len);
 
 		for (i = 0; i < builtin_entry; ++i) {
-			builtin_mapping[i].gpio = be32_to_cpup(spec + (i*3));
-			builtin_mapping[i].func_mode =
-				be32_to_cpup(spec+(i*3)+1);
-			builtin_mapping[i].builtin_eint =
-				be32_to_cpup(spec+(i*3)+2);
+			builtin_mapping[i].gpio = be32_to_cpup(spec + (i * 3));
+			builtin_mapping[i].func_mode = be32_to_cpup(spec + (i * 3) + 1);
+			builtin_mapping[i].builtin_eint = be32_to_cpup(spec + (i * 3) + 2);
 			pr_debug("[EIC] gpio, func_mode, builtin = %u, %u,%u\n",
-				 builtin_mapping[i].gpio,
-				 builtin_mapping[i].func_mode,
+				 builtin_mapping[i].gpio, builtin_mapping[i].func_mode,
 				 builtin_mapping[i].builtin_eint);
 		}
 	}
@@ -1691,11 +1603,7 @@ static int __init mt_eint_init(void)
 	/* assign to domain 0 for AP */
 	mt_eint_setdomain0();
 
-#ifndef CONFIG_HAS_EARLYSUSPEND
-	wakeup_source_init(&EINT_suspend_lock, "EINT wakelock");
-#else
 	wake_lock_init(&EINT_suspend_lock, WAKE_LOCK_SUSPEND, "EINT wakelock");
-#endif
 
 	setup_MD_eint();
 	for (i = 0; i < EINT_MAX_CHANNEL; i++) {
@@ -1715,14 +1623,11 @@ static int __init mt_eint_init(void)
 	/* Register Linux IRQ interface */
 	EINT_IRQ_BASE = mt_get_supported_irq_num();
 	if (!EINT_IRQ_BASE) {
-		pr_err("get_supported_irq_num returns %d\n",
-				EINT_IRQ_BASE);
+		pr_err("get_supported_irq_num returns %d\n", EINT_IRQ_BASE);
 		return -1;
 	}
-
 	pr_debug("EINT_IRQ_BASE = %d\n", EINT_IRQ_BASE);
-	irq_base = irq_alloc_descs(EINT_IRQ_BASE, EINT_IRQ_BASE,
-			EINT_MAX_CHANNEL, numa_node_id());
+	irq_base = irq_alloc_descs(EINT_IRQ_BASE, EINT_IRQ_BASE, EINT_MAX_CHANNEL, numa_node_id());
 	if (irq_base != EINT_IRQ_BASE) {
 		pr_err("EINT alloc desc error %d\n", irq_base);
 		return -1;
@@ -1761,16 +1666,13 @@ static unsigned int mt_eint_get_debounce_cnt(unsigned int cur_eint_num)
 		deb = EINT_FUNC.deb_time[cur_eint_num];
 	else {
 		dbnc = readl(IOMEM(base));
-		dbnc = ((dbnc >> EINT_DBNC_SET_DBNC_BITS) >>
-			((cur_eint_num % 4) * 8) & EINT_DBNC);
+		dbnc = ((dbnc >> EINT_DBNC_SET_DBNC_BITS) >> ((cur_eint_num % 4) * 8) & EINT_DBNC);
 
 		switch (dbnc) {
 		case 0:
-			/* 0.5 actually, but we don't allow user to set. */
-			deb = 0;
+			deb = 0;	/* 0.5 actually, but we don't allow user to set. */
 			dbgmsg(KERN_CRIT
-			       "ms should not be 0. eint_num:%d in %s\n",
-				cur_eint_num, __func__);
+			       "ms should not be 0. eint_num:%d in %s\n", cur_eint_num, __func__);
 			break;
 		case 1:
 			deb = 1;
@@ -1795,8 +1697,8 @@ static unsigned int mt_eint_get_debounce_cnt(unsigned int cur_eint_num)
 			break;
 		default:
 			deb = 0;
-			pr_err("inv deb time in the EIN_CON, dbnc:%d, deb:%d\n"
-				, dbnc, deb);
+			pr_err("invalid deb time in the EIN_CON register, dbnc:%d, deb:%d\n", dbnc,
+			       deb);
 			break;
 		}
 	}
@@ -1827,8 +1729,7 @@ void mt_eint_print_status(void)
 		/* read status register every 32 interrupts */
 		status = mt_eint_get_status(reg_base);
 		if (status)
-			pr_notice("EINT Module - index:%d,EINT_STA = 0x%x\n",
-				reg_base, status);
+			pr_notice("EINT Module - index:%d,EINT_STA = 0x%x\n", reg_base, status);
 		else
 			continue;
 

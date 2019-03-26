@@ -76,6 +76,22 @@ static ssize_t store_engine##nr##_load(struct device *dev,		\
 	return store_engine_load(dev, attr, buf, len, nr);		\
 }
 
+#define show_prog_start(nr)						\
+static ssize_t show_engine##nr##_prog_start(struct device *dev,		\
+				     struct device_attribute *attr,	\
+				     char *buf)	\
+{									\
+	return show_engine_prog_start(dev, attr, buf, nr);		\
+}
+
+#define store_prog_start(nr)						\
+static ssize_t store_engine##nr##_prog_start(struct device *dev,	\
+				     struct device_attribute *attr,	\
+				     const char *buf, size_t len)	\
+{									\
+	return store_engine_prog_start(dev, attr, buf, len, nr);	\
+}
+
 struct lp55xx_led;
 struct lp55xx_chip;
 
@@ -99,6 +115,7 @@ struct lp55xx_reg {
  * @set_led_current    : LED current set function
  * @firmware_cb        : Call function when the firmware is loaded
  * @run_engine         : Run internal engine for pattern
+ * @is_engine_active   : Detect whether an engine is running
  * @dev_attr_group     : Device specific attributes
  */
 struct lp55xx_device_config {
@@ -120,6 +137,9 @@ struct lp55xx_device_config {
 
 	/* used for running firmware LED patterns */
 	void (*run_engine) (struct lp55xx_chip *chip, bool start);
+
+	/* used to reduce probe time if engine already setup */
+	bool (*is_engine_active)(struct lp55xx_chip *chip);
 
 	/* additional device specific attributes */
 	const struct attribute_group *dev_attr_group;
@@ -145,6 +165,7 @@ struct lp55xx_engine {
  * @engine_idx : Selected engine number
  * @engines    : Engine structure for the device attribute R/W interface
  * @fw         : Firmware data for running a LED pattern
+ * @cache_inv  : Bit field for whether led brightness should be invalidated
  */
 struct lp55xx_chip {
 	struct i2c_client *cl;
@@ -156,6 +177,7 @@ struct lp55xx_chip {
 	enum lp55xx_engine_index engine_idx;
 	struct lp55xx_engine engines[LP55XX_ENGINE_MAX];
 	const struct firmware *fw;
+	u8 cache_inv;
 };
 
 /*
@@ -166,6 +188,7 @@ struct lp55xx_chip {
  * @max_current     : Maximun current at each led channel
  * @brightness_work : Workqueue for brightness control
  * @brightness      : Brightness value
+ * @brightness_new  : New brightness value to be set when workqueue is executed
  * @chip            : The lp55xx chip data
  */
 struct lp55xx_led {
@@ -175,6 +198,7 @@ struct lp55xx_led {
 	u8 max_current;
 	struct work_struct brightness_work;
 	u8 brightness;
+	u8 brightness_new;
 	struct lp55xx_chip *chip;
 };
 

@@ -75,3 +75,10 @@ config MTK_OD_SUPPORT
 	  not short enough to display clear moving objects.
 	  This feature allows to speed up the change time of each pixels.
 	  MUST fill the over-drive table correctly according to LCD property.
+
+
+config MTK_DISP_HIDE_ERROR_LOGS
+	bool "MTK_DISP_HIDE_ERROR_LOGS"
+	default n
+	help
+	  To hide display error logs

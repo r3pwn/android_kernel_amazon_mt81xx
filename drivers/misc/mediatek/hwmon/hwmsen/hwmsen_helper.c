@@ -102,7 +102,7 @@ int hwmsen_read_byte(struct i2c_client *client, u8 addr, u8 *data)
 	err = i2c_transfer(client->adapter, msgs, sizeof(msgs)/sizeof(msgs[0]));
 	if (err != 2) {
 		HWM_ERR("i2c_transfer error: (%d %p) %d\n", addr, data, err);
-		err = -EIO;
+		return -EIO;
 	}
 
 	err = 0;
@@ -161,7 +161,7 @@ int hwmsen_read_block(struct i2c_client *client, u8 addr, u8 *data, u8 len)
 	err = i2c_transfer(client->adapter, msgs, sizeof(msgs)/sizeof(msgs[0]));
 	if (err != 2) {
 		HWM_ERR("i2c_transfer error: (%d %p %d) %d\n", addr, data, len, err);
-		err = -EIO;
+		return -EIO;
 	}
 #if defined(HWMSEN_DEBUG)
 	static char buf[128];

@@ -9,9 +9,7 @@ ccflags-y += \
 				-I$(srctree)/drivers/misc/mediatek/sync/      \
 				-I$(srctree)/drivers/misc/mediatek/cmdq/v2/ \
 				-I$(srctree)/drivers/misc/mediatek/cmdq/v2/$(MTK_PLATFORM)/ \
-				-I$(srctree)/drivers/misc/mediatek/lcm/inc/ \
-				-I$(srctree)/drivers/misc/mediatek/leds/ \
-				-I$(srctree)/drivers/misc/mediatek/leds/$(MTK_PLATFORM)/
+				-I$(srctree)/drivers/misc/mediatek/lcm/inc/
 
 ifeq ($(CONFIG_ARCH_MT6735),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/video/$(MTK_PLATFORM)/dispsys/mt6735

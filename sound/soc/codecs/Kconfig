@@ -80,6 +80,8 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_PCM512x_I2C if I2C
 	select SND_SOC_PCM512x_SPI if SPI_MASTER
 	select SND_SOC_RT286 if I2C
+	select SND_SOC_RT551X if I2C
+	select SND_SOC_RT551X_SPI if SPI_MASTER
 	select SND_SOC_RT5631 if I2C
 	select SND_SOC_RT5640 if I2C
 	select SND_SOC_RT5645 if I2C
@@ -486,6 +488,18 @@ config SND_SOC_RT286
 	tristate
 	depends on I2C
 
+config SND_SOC_RT551X
+	tristate "SND_SOC_RT551X"
+	default y if SND_SOC_RT551X_SPI=y
+
+config SND_SOC_RT551X_SPI
+	tristate "SND_SOC_RT551X_SPI"
+	depends on SPI_MASTER
+
+config SND_SOC_RT551X_TEST_ONLY
+	tristate "SND_SOC_RT551X_TEST_ONLY"
+	depends on SND_SOC_RT551X_SPI
+
 config SND_SOC_RT5631
 	tristate
 
@@ -594,6 +608,11 @@ config SND_SOC_TLV320AIC26
 
 config SND_SOC_TLV320AIC31XX
 	tristate "Texas Instruments TLV320AIC31xx CODECs"
+	depends on I2C
+	select REGMAP_I2C
+
+config SND_SOC_TLV320AIC3101
+	tristate "Texas Instruments TLV320AIC3101 CODEC"
 	depends on I2C
 	select REGMAP_I2C
 
@@ -813,9 +832,3 @@ config SND_SOC_TPA6130A2
 	depends on I2C
 
 endmenu
-
-config SND_SOC_MAX98926
-  bool "SND_SOC_MAX98926"
-  default n
-  help
-      for max98926 codec

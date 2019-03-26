@@ -56,20 +56,7 @@ config MTK_SCPSYS_MT2701
 	  The System Control Processor System (SCPSYS) has several power
 	  management related tasks in the system.
 
-config MTK_SCPSYS_MT8127
-	bool "SCPSYS Support MediaTek MT8127"
-	depends on MTK_INFRACFG
-	select SOC_MEDIATEK
-	select REGMAP
-	select PM_GENERIC_DOMAINS
-	default y if ARCH_MT8127
-	help
-	  Say yes here to add support for the MediaTek SCPSYS power domain
-	  driver.
-	  The System Control Processor System (SCPSYS) has several power
-	  management related tasks in the system.
-
-config MTK_PMIC_WRAP_COMMON
+config MTK_PMIC_WRAP
 	tristate "MediaTek PMIC Wrapper Support"
 	depends on ARCH_MEDIATEK
 	select REGMAP

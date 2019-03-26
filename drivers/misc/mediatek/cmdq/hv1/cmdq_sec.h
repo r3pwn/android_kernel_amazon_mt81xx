@@ -7,8 +7,8 @@
 #include "cmdq_core.h"
 #include "cmdq_reg.h"
 
-#ifdef CMDQ_SECURE_PATH_SUPPORT
 #include "cmdq_iwc_sec.h"
+#ifdef CMDQ_SECURE_PATH_SUPPORT
 #include "tz_cross/trustzone.h"
 #include "tz_cross/ta_mem.h"
 #include "trustzone/kree/system.h"
@@ -69,8 +69,6 @@ typedef struct cmdqSecSharedMemoryStruct {
 } cmdqSecSharedMemoryStruct, *cmdqSecSharedMemoryHandle;
 #endif
 
-#ifdef CMDQ_SECURE_PATH_SUPPORT
-
 /**
  * Callback to fill message buffer for secure task
  *
@@ -83,6 +81,9 @@ typedef struct cmdqSecSharedMemoryStruct {
 typedef int32_t(*CmdqSecFillIwcCB) (iwcCmdqMessage_t *_pIwc,
 				    uint32_t iwcCommand,
 				    struct TaskStruct *_pTask, int32_t thread);
+
+#ifdef CMDQ_SECURE_PATH_SUPPORT
+
 /**
   * submit task to secure world
   */
@@ -110,7 +111,6 @@ void cmdqSecInitialize(void);
 void cmdqSecDeInitialize(void);
 
 int32_t cmdq_sec_sync_handle_hdcp_unlock(struct cmdqSyncHandleHdcpStruct syncHandle);
-void cmdq_sec_init_secure_path(void);
 
 
 extern struct ContextStruct gCmdqContext;

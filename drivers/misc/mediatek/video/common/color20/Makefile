@@ -26,9 +26,9 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/video/$(MTK_PLATFORM)/dispsys
 obj-y += ddp_color.o
 
 ifeq ($(strip $(MTK_PQ_COLOR_MODE)),MDP)
-    ccflags-y += -DDISP_COLOR_OFF
+    LOCAL_CFLAGS += -DDISP_COLOR_OFF
 else ifeq ($(strip $(MTK_PQ_COLOR_MODE)),OFF)
-    ccflags-y += -DDISP_COLOR_OFF
+    LOCAL_CFLAGS += -DDISP_COLOR_OFF
 endif
 
 ifeq (y, $(filter y, $(CONFIG_ARCH_MT6755)))
@@ -36,10 +36,10 @@ ifeq (y, $(filter y, $(CONFIG_ARCH_MT6755)))
 endif
 
 ifeq ($(strip $(MTK_PQ_COLOR_MODE)),MDP)
-    ccflags-y += -DMDP_COLOR_ON
+    LOCAL_CFLAGS += -DMDP_COLOR_ON
 else ifeq ($(strip $(MTK_PQ_COLOR_MODE)),DISP_MDP)
-    ccflags-y += -DDISP_MDP_COLOR_ON
+    LOCAL_CFLAGS += -DDISP_MDP_COLOR_ON
 else ifeq ($(strip $(MTK_PQ_COLOR_MODE)),DISP)
-    ccflags-y += -DDISP_COLOR_ON
+    LOCAL_CFLAGS += -DDISP_COLOR_ON
 endif
 

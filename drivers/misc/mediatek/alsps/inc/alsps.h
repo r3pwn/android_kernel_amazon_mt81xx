@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/module.h>
+#include <linux/suspend.h>
 
 #include <batch.h>
 #include <sensors_io.h>
@@ -125,6 +126,7 @@ struct alsps_context {
 	atomic_t			wake;  /*user-space request to wake-up, used with stop*/
 
 	atomic_t			early_suspend;
+	atomic_t			alsps_suspend;
 
 	struct alsps_data	drv_data;
 	struct als_control_path	als_ctl;
@@ -140,7 +142,9 @@ struct alsps_context {
 	bool is_als_first_data_after_enable;
 	bool is_ps_first_data_after_enable;
 	bool is_als_polling_run;
+	bool is_als_need_restore_polling;
 	bool is_ps_polling_run;
+	bool is_ps_need_restore_polling;
 	bool is_als_batch_enable;/* version2.this is used for judging whether sensor is in batch mode */
 	bool is_ps_batch_enable;	/* version2.this is used for judging whether sensor is in batch mode */
 	bool is_get_valid_ps_data_after_enable;

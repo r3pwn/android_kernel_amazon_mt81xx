@@ -60,9 +60,6 @@ struct last_reboot_reason {
 	uint32_t clk_data[8];
 	uint32_t suspend_debug_flag;
 
-	uint32_t vcore_dvfs_opp;
-	uint32_t vcore_dvfs_status;
-
 	uint8_t cpu_dvfs_vproc_big;
 	uint8_t cpu_dvfs_vproc_little;
 	uint8_t cpu_dvfs_oppidx;
@@ -125,10 +122,10 @@ static int FIQ_log_size = sizeof(struct ram_console_buffer);
 static struct ram_console_buffer *ram_console_buffer;
 static struct ram_console_buffer *ram_console_old;
 static struct ram_console_buffer *ram_console_buffer_pa;
+static int ram_console_old_valid = 1;
 
 static DEFINE_SPINLOCK(ram_console_lock);
 
-static atomic_t rc_in_fiq = ATOMIC_INIT(0);
 
 #ifdef __aarch64__
 static void *_memcpy(void *dest, const void *src, size_t count)
@@ -210,6 +207,55 @@ static const struct file_operations ram_console2_file_ops = {
 	.release = single_release,
 };
 
+static int emmc_read_last_kmsg(void *data)
+{
+	int ret;
+	struct file *filp;
+
+	struct proc_dir_entry *entry;
+	struct ram_console_buffer *bufp = NULL;
+	int timeout = 0;
+
+	ram_console2_log = kzalloc(ram_console_buffer->sz_buffer, GFP_KERNEL);
+	if (ram_console2_log == NULL)
+		return 1;
+
+	do {
+		filp = expdb_open();
+		if (timeout++ > 60) {
+			pr_err("ram_console: open expdb partition error [%ld]!\n", PTR_ERR(filp));
+			return 1;
+		}
+		msleep(500);
+	} while (IS_ERR(filp));
+	ret = kernel_read(filp, EMMC_ADDR, ram_console2_log, ram_console_buffer->sz_buffer);
+	fput(filp);
+	if (IS_ERR(ERR_PTR(ret))) {
+		kfree(ram_console2_log);
+		ram_console2_log = NULL;
+		pr_err("ram_console: read emmc data 2 error!\n");
+		return 1;
+	}
+
+	bufp = (struct ram_console_buffer *)ram_console2_log;
+	if (bufp->sig != REBOOT_REASON_SIG) {
+		kfree(ram_console2_log);
+		ram_console2_log = NULL;
+		pr_err("ram_console: emmc read data sig is not match!\n");
+		return 1;
+	}
+
+	entry = proc_create("last_kmsg2", 0444, NULL, &ram_console2_file_ops);
+	if (!entry) {
+		pr_err("ram_console: failed to create proc entry\n");
+		kfree(ram_console2_log);
+		ram_console2_log = NULL;
+		return 1;
+	}
+	pr_err("ram_console: create last_kmsg2 ok.\n");
+	return 0;
+
+}
 #else
 void last_kmsg_store_to_emmc(void)
 {
@@ -318,7 +364,6 @@ void aee_sram_fiq_save_bin(const char *msg, size_t len)
 
 void aee_disable_ram_console_write(void)
 {
-	atomic_set(&rc_in_fiq, 1);
 }
 
 void aee_sram_fiq_log(const char *msg)
@@ -330,7 +375,6 @@ void aee_sram_fiq_log(const char *msg)
 	if (FIQ_log_size + count > ram_console_buffer_size)
 		return;
 
-	atomic_set(&rc_in_fiq, 1);
 
 	while ((delay > 0) && (spin_is_locked(&ram_console_lock))) {
 		udelay(1);
@@ -344,9 +388,6 @@ void aee_sram_fiq_log(const char *msg)
 void ram_console_write(struct console *console, const char *s, unsigned int count)
 {
 	unsigned long flags;
-
-	if (atomic_read(&rc_in_fiq))
-		return;
 
 	spin_lock_irqsave(&ram_console_lock, flags);
 
@@ -387,9 +428,25 @@ static int ram_console_check_header(struct ram_console_buffer *buffer)
 		return 0;
 }
 
+char * __attribute__ ((weak)) dpidle_map_status(u32 step)
+{
+	return "Target not support to track deepidle";
+}
+
+char* __attribute__ ((weak)) lastpc_get_log(void)
+{
+	return "Target not support to save lastpc in last_kmsg";
+}
+
 static int ram_console_lastk_show(struct ram_console_buffer *buffer, struct seq_file *m, void *v)
 {
 	unsigned int wdt_status;
+
+	if (!buffer) {
+		pr_err("ram_console: buffer is null\n");
+		seq_puts(m, "buffer is null.\n");
+		return 0;
+	}
 
 	if (ram_console_check_header(buffer) && buffer->sz_buffer != 0) {
 		pr_err("ram_console: buffer %p, size %x(%x)\n", buffer, buffer->sz_buffer,
@@ -427,6 +484,9 @@ static int ram_console_lastk_show(struct ram_console_buffer *buffer, struct seq_
 		seq_write(m, buffer, ram_console_buffer->sz_buffer);
 	}
 #endif
+
+	seq_printf(m, "%s\n", lastpc_get_log());
+	seq_printf(m, "%s (0x%x)\n", dpidle_map_status(LAST_RRR_VAL(deepidle_data)), LAST_RRR_VAL(deepidle_data));
 	return 0;
 }
 
@@ -449,6 +509,10 @@ static int __init ram_console_init(struct ram_console_buffer *buffer, size_t buf
 		memset_io((void *)buffer, 0, buffer_size);
 		buffer->sig = REBOOT_REASON_SIG;
 	}
+
+	if (buffer->sz_buffer != buffer_size)
+		ram_console_old_valid = 0;
+
 	ram_console_save_old(buffer, buffer_size);
 	if (buffer->sz_lk != 0 && buffer->off_lk + ALIGN(buffer->sz_lk, 64) == buffer->off_llk)
 		buffer->off_linux = buffer->off_llk + ALIGN(buffer->sz_lk, 64);
@@ -503,8 +567,8 @@ static void *remap_lowmem(phys_addr_t start, phys_addr_t size)
 #endif
 
 struct mem_desc_t {
-	unsigned long start;
-	unsigned long size;
+	unsigned int start;
+	unsigned int size;
 };
 
 #if defined(CONFIG_MTK_RAM_CONSOLE_USING_SRAM)
@@ -516,10 +580,10 @@ static int __init dt_get_ram_console(unsigned long node, const char *uname, int 
 	if (depth != 1 || (strcmp(uname, "chosen") != 0 && strcmp(uname, "chosen@0") != 0))
 		return 0;
 
-	sram = (struct mem_desc_t *) of_get_flat_dt_prop(node, "non_secure_sram", NULL);
+	sram = (mem_desc_t *) of_get_flat_dt_prop(node, "non_secure_sram", NULL);
 	if (sram) {
-		pr_notice("ram_console:[DT] 0x%lx@0x%lx\n", sram->size, sram->start);
-		*(struct mem_desc_t *) data = *sram;
+		pr_notice("ram_console:[DT] 0x%x@0x%x\n", sram->size, sram->start);
+		*(mem_desc_t *) data = *sram;
 	}
 
 	return 1;
@@ -545,7 +609,7 @@ static int __init ram_console_early_init(void)
 		if (bufp)
 			buffer_size = sram.size;
 		else {
-			pr_err("ram_console: ioremap failed, [0x%lx, 0x%lx]\n", sram.start,
+			pr_err("ram_console: ioremap failed, [0x%x, 0x%x]\n", sram.start,
 			       sram.size);
 			return 0;
 		}
@@ -553,14 +617,8 @@ static int __init ram_console_early_init(void)
 		return 0;
 	}
 #else
-	bufp = ioremap(CONFIG_MTK_RAM_CONSOLE_ADDR, CONFIG_MTK_RAM_CONSOLE_SIZE);
-	if (bufp)
-		buffer_size = CONFIG_MTK_RAM_CONSOLE_SIZE;
-		ram_console_buffer_pa = CONFIG_MTK_RAM_CONSOLE_ADDR;
-	else {
-		pr_err("ram_console: ioremap failed, [0x%x, 0x%x]\n", sram.start, sram.size);
-		return 0;
-	}
+	bufp = (struct ram_console_buffer *)CONFIG_MTK_RAM_CONSOLE_ADDR;
+	buffer_size = CONFIG_MTK_RAM_CONSOLE_SIZE;
 #endif
 #elif defined(CONFIG_MTK_RAM_CONSOLE_USING_DRAM)
 	bufp = remap_lowmem(CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR, CONFIG_MTK_RAM_CONSOLE_DRAM_SIZE);
@@ -604,8 +662,19 @@ static int __init ram_console_late_init(void)
 
 #ifdef CONFIG_MTK_EMMC_SUPPORT
 #ifdef CONFIG_MTK_AEE_IPANIC
+	int err;
+	static struct task_struct *thread;
+
+	thread = kthread_run(emmc_read_last_kmsg, 0, "read_poweroff_log");
+	if (IS_ERR(thread)) {
+		err = PTR_ERR(thread);
+		pr_err("ram_console: failed to create kernel thread: %d\n", err);
+	}
 #endif
 #endif
+	if (!ram_console_old_valid)
+		return 0;
+
 	entry = proc_create("last_kmsg", 0444, NULL, &ram_console_file_ops);
 	if (!entry) {
 		pr_err("ram_console: failed to create proc entry\n");
@@ -849,30 +918,6 @@ unsigned long *aee_rr_rec_cpu_dormant_pa(void)
 		return (unsigned long *)&RR_LINUX_PA->cpu_dormant;
 	else
 		return NULL;
-}
-
-void aee_rr_rec_vcore_dvfs_opp(u32 val)
-{
-	if (!ram_console_init_done)
-		return;
-	LAST_RR_SET(vcore_dvfs_opp, val);
-}
-
-u32 aee_rr_curr_vcore_dvfs_opp(void)
-{
-	return LAST_RR_VAL(vcore_dvfs_opp);
-}
-
-void aee_rr_rec_vcore_dvfs_status(u32 val)
-{
-	if (!ram_console_init_done)
-		return;
-	LAST_RR_SET(vcore_dvfs_status, val);
-}
-
-u32 aee_rr_curr_vcore_dvfs_status(void)
-{
-	return LAST_RR_VAL(vcore_dvfs_status);
 }
 
 void aee_rr_rec_cpu_dvfs_vproc_big(u8 val)
@@ -1190,16 +1235,6 @@ void aee_rr_show_clk(struct seq_file *m)
 		seq_printf(m, "clk_data: 0x%x\n", LAST_RRR_VAL(clk_data[i]));
 }
 
-void aee_rr_show_vcore_dvfs_opp(struct seq_file *m)
-{
-	seq_printf(m, "vcore_dvfs_opp: 0x%x\n", LAST_RRR_VAL(vcore_dvfs_opp));
-}
-
-void aee_rr_show_vcore_dvfs_status(struct seq_file *m)
-{
-	seq_printf(m, "vcore_dvfs_status: 0x%x\n", LAST_RRR_VAL(vcore_dvfs_status));
-}
-
 void aee_rr_show_cpu_dvfs_vproc_big(struct seq_file *m)
 {
 	seq_printf(m, "cpu_dvfs_vproc_big: 0x%x\n", LAST_RRR_VAL(cpu_dvfs_vproc_big));
@@ -1328,8 +1363,6 @@ last_rr_show_t aee_rr_show[] = {
 	aee_rr_show_deepidle,
 	aee_rr_show_sodi,
 	aee_rr_show_spm_suspend,
-	aee_rr_show_vcore_dvfs_opp,
-	aee_rr_show_vcore_dvfs_status,
 	aee_rr_show_clk,
 	aee_rr_show_cpu_dvfs_vproc_big,
 	aee_rr_show_cpu_dvfs_vproc_little,

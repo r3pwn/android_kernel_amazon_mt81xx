@@ -103,6 +103,20 @@ unsigned int get_boot_mode(void)
 }
 EXPORT_SYMBOL(get_boot_mode);
 
+#if defined(CONFIG_MTK_KERNEL_POWER_OFF_CHARGING)
+/* for convenience, simply check is charger mode or not */
+bool is_charging_mode(void)
+{
+	init_boot_common(__LINE__);
+
+	if ( g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT || g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT)
+		return true;
+
+	return false;
+}
+EXPORT_SYMBOL(is_charging_mode);
+#endif
+
 /* for convenience, simply check is meta mode or not */
 bool is_meta_mode(void)
 {

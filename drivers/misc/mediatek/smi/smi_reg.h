@@ -1,17 +1,17 @@
-#ifndef _SMI_REG_H_
-#define _SMI_REG_H_
+#ifndef _SMI_REG_H__
+#define _SMI_REG_H__
+
 
 #define SMI_COMMON_EXT_BASE (smi_reg_base_common_ext)
 #define LARB0_BASE (smi_reg_base_barb0)
 #define LARB1_BASE (smi_reg_base_barb1)
 
-#if defined(SMI_D2)
+#if defined D2
 #define LARB2_BASE (smi_reg_base_barb2)
-#elif defined(SMI_D1) || defined(SMI_D3) || defined(SMI_J)
+#elif defined D1 || defined D3
 #define LARB2_BASE (smi_reg_base_barb2)
 #define LARB3_BASE (smi_reg_base_barb3)
 #endif
-
 
 /* ================================================= */
 /* common macro definitions */
@@ -281,38 +281,31 @@
 /* ================================================================ */
 
 #define SMI_ERROR_ADDR  0
-#if defined(SMI_D2)
+#if defined D2
 #define SMI_LARB_NR     3
 
 #define SMI_LARB0_PORT_NUM  8
 #define SMI_LARB1_PORT_NUM  7
 #define SMI_LARB2_PORT_NUM  13
-#elif defined(SMI_D1)
+#elif defined D1
 #define SMI_LARB_NR     4
 
 #define SMI_LARB0_PORT_NUM  7
 #define SMI_LARB1_PORT_NUM  7
 #define SMI_LARB2_PORT_NUM  21
 #define SMI_LARB3_PORT_NUM  13
-#elif defined(SMI_D3)
+#elif defined D3
 #define SMI_LARB_NR     4
 
 #define SMI_LARB0_PORT_NUM  10
 #define SMI_LARB1_PORT_NUM  7
 #define SMI_LARB2_PORT_NUM  21
 #define SMI_LARB3_PORT_NUM  13
-#elif defined(SMI_R)
+#elif defined R
 #define SMI_LARB_NR     2
 
 #define SMI_LARB0_PORT_NUM  7
 #define SMI_LARB1_PORT_NUM  11
-#elif defined(SMI_J)
-#define SMI_LARB_NR     4
-
-#define SMI_LARB0_PORT_NUM  11
-#define SMI_LARB1_PORT_NUM  7
-#define SMI_LARB2_PORT_NUM  21
-#define SMI_LARB3_PORT_NUM  13
 #endif
 
 #define SMI_LARB_STAT                   (0x0)
@@ -379,10 +372,21 @@
 #define F_SMI_DOMN(port, domain)        (((domain)&0x3)<<((((port) > 15) ? (port-16) : port)<<1))
 
 
+
+
+/*
+#define SMI_SHARE_EN         (0x210)
+    #define F_SMI_SHARE_EN(port)     F_BIT_SET(m4u_port_2_larb_port(port))
+#define SMI_ROUTE_SEL     (0x220)
+    #define F_SMI_ROUTE_SEL_EMI(port)    F_BIT_SET(m4u_port_2_larb_port(port))
+#define SMI_MMULOCK_EN      (0x230)
+*/
+
+
 /* ===============================================================
  *					  SMI COMMON
  * =============================================================== */
-#if defined(SMI_R)
+#if defined R
 #define REG_OFFSET_SMI_L1LEN	                (0x200)
 #define REG_OFFSET_SMI_L1ARB0	                (0x204)
 #define REG_OFFSET_SMI_L1ARB1	                (0x208)
@@ -397,6 +401,46 @@
 #define REG_OFFSET_SMI_L1ARB3	                (0x110)
 #define REG_OFFSET_SMI_L1ARB4	                (0x114)
 #endif
+/*
+#define REG_SMI_MON_AXI_ENA             (0x1a0+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_CLR             (0x1a4+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_TYPE            (0x1ac+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_CON             (0x1b0+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_ACT_CNT         (0x1c0+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_REQ_CNT         (0x1c4+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_OSTD_CNT        (0x1c8+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_BEA_CNT         (0x1cc+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_BYT_CNT         (0x1d0+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_CP_CNT          (0x1d4+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_DP_CNT          (0x1d8+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_CP_MAX          (0x1dc+SMI_COMMON_EXT_BASE)
+#define REG_SMI_MON_AXI_COS_MAX         (0x1e0+SMI_COMMON_EXT_BASE)
+#define REG_SMI_L1LEN	                (0x200+SMI_COMMON_EXT_BASE)
+#define REG_SMI_L1ARB0	                (0x204+SMI_COMMON_EXT_BASE)
+#define REG_SMI_L1ARB1	                (0x208+SMI_COMMON_EXT_BASE)
+#define REG_SMI_L1ARB2	                (0x20C+SMI_COMMON_EXT_BASE)
+#define REG_SMI_L1ARB3	                (0x210+SMI_COMMON_EXT_BASE)
+#define REG_SMI_L1ARB4	                (0x214+SMI_COMMON_EXT_BASE)
+#define REG_SMI_BUS_SEL	                (0x220+SMI_COMMON_EXT_BASE)
+    #define F_SMI_BUS_SEL_larb0(mmu_idx)     F_VAL(mmu_idx, 1, 0)
+    #define F_SMI_BUS_SEL_larb1(mmu_idx)     F_VAL(mmu_idx, 3, 2)
+    #define F_SMI_BUS_SEL_larb2(mmu_idx)     F_VAL(mmu_idx, 5, 4)
+    #define F_SMI_BUS_SEL_larb3(mmu_idx)     F_VAL(mmu_idx, 7, 6)
+    #define F_SMI_BUS_SEL_larb4(mmu_idx)     F_VAL(mmu_idx, 9, 8)
+#define REG_SMI_WRR_REG0                (0x228+SMI_COMMON_EXT_BASE)
+#define REG_SMI_READ_FIFO_TH            (0x230+SMI_COMMON_EXT_BASE)
+#define REG_SMI_SMI_M4U_TH              (0x234+SMI_COMMON_EXT_BASE)
+#define REG_SMI_SMI_FIFO2_TH            (0x238+SMI_COMMON_EXT_BASE)
+#define REG_SMI_SMI_PREULTRA_MASK0      (0x23c+SMI_COMMON_EXT_BASE)
+#define REG_SMI_SMI_PREULTRA_MASK1      (0x240+SMI_COMMON_EXT_BASE)
+#define REG_SMI_DCM                     (0x300+SMI_COMMON_EXT_BASE)
+#define REG_SMI_SMI_ELA                 (0x304+SMI_COMMON_EXT_BASE)
+#define REG_SMI_DEBUG0                  (0x400+SMI_COMMON_EXT_BASE)
+#define REG_SMI_DEBUG1                  (0x404+SMI_COMMON_EXT_BASE)
+#define REG_SMI_DEBUG2                  (0x408+SMI_COMMON_EXT_BASE)
+#define REG_SMI_DUMMY                   (0x418+SMI_COMMON_EXT_BASE)
+
+*/
 
 /* ========================================================================= */
 /* peripheral system */
@@ -439,9 +483,9 @@ static inline void COM_WriteReg32(unsigned long addr, unsigned int Val)
 extern unsigned long smi_reg_base_common_ext;
 extern unsigned long smi_reg_base_barb0;
 extern unsigned long smi_reg_base_barb1;
-#if defined(SMI_D2)
+#if defined D2
 extern unsigned long smi_reg_base_barb2;
-#elif defined(SMI_D1) || defined(SMI_D3) || defined(SMI_J)
+#elif defined D1 || defined D3
 extern unsigned long smi_reg_base_barb2;
 extern unsigned long smi_reg_base_barb3;
 #endif

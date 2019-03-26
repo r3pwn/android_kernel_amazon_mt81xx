@@ -2,7 +2,7 @@
 
 # fix for build system bug...
 obj-$(CONFIG_STAGING)		+= staging.o
-
+obj-$(CONFIG_AMAZON)		+= amazon/
 obj-y				+= media/
 obj-$(CONFIG_SLICOSS)		+= slicoss/
 obj-$(CONFIG_PRISM2_USB)	+= wlan-ng/
@@ -46,4 +46,4 @@ obj-$(CONFIG_MTD_SPINAND_MT29F)	+= mt29f_spinand/
 obj-$(CONFIG_GS_FPGABOOT)	+= gs_fpgaboot/
 obj-$(CONFIG_CRYPTO_SKEIN)	+= skein/
 obj-$(CONFIG_UNISYSSPAR)	+= unisys/
-obj-$(CONFIG_POWERVR_ROGUE)	+= imgtec/
+obj-$(CONFIG_AMAZON)		+= amazon/

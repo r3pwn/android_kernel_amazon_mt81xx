@@ -46,6 +46,7 @@ struct mtkfb_fence_buf_info {
 	unsigned int size;
 	unsigned int mva_offset;
 	BUFFER_STATE buf_state;
+	unsigned int cache_sync;
 	unsigned int set_input_ticket;
 	unsigned int trigger_ticket;	/* we can't update trigger_ticket_end,
 					   because can't gurantee ticket being updated before cmdq callback
@@ -173,8 +174,6 @@ int disp_sync_get_cached_layer_info(unsigned int session_id, unsigned int timeli
 				    unsigned int *fence_idx);
 int disp_sync_put_cached_layer_info(unsigned int session_id, unsigned int timeline_idx,
 				    disp_input_config *src, unsigned long mva);
-int disp_sync_put_cached_layer_info_v2(unsigned int session_id, unsigned int timeline_idx,
-			unsigned int fence_id, int layer_en, unsigned long mva);
 
 int disp_sync_convert_input_to_fence_layer_info(disp_input_config *src,
 						FENCE_LAYER_INFO *dst,

@@ -38,17 +38,6 @@ config COMMON_CLK_MT6755
           MT6755 support CCF for Linux K.S Migration
           The value is default on.
 
-config COMMON_CLK_MT6797
-	bool "Clock driver for Mediatek MT6797"
-	depends on COMMON_CLK
-	select COMMON_CLK_MEDIATEK_V1
-	default y if ARCH_MT6797 && !MTK_CLKMGR
-	---help---
-	  This driver supports Mediatek MT6797 clocks.
-          Use the config to support CCF on MT6797,
-          instead of old clkmgr architecture.
-          MT6797 default willl use CCF.
-
 config COMMON_CLK_MT8135
 	bool "Clock driver for Mediatek MT8135"
 	depends on COMMON_CLK
@@ -56,17 +45,6 @@ config COMMON_CLK_MT8135
 	default y if ARCH_MT8135
 	---help---
 	  This driver supports Mediatek MT8135 clocks.
-
-config COMMON_CLK_MT8127
-	bool "Clock driver for Mediatek MT8127"
-	depends on COMMON_CLK
-	select COMMON_CLK_MEDIATEK_NEW
-	default y if ARCH_MT8127
-	---help---
-	  This driver supports Mediatek MT8127 clocks,
-	  which descripts the whole clock hierarchy about
-	  IC; It will be used to enable IC-special driver
-	  part of CCF framework on MT8127 platform.
 
 config COMMON_CLK_MT8163
 	bool "Clock driver for Mediatek MT8163"

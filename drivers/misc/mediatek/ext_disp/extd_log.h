@@ -33,4 +33,11 @@
 #define EXTD_FACTORY_ERR(fmt, arg...)	pr_err("[EXTD]:"fmt, ##arg)
 #define EXTD_FACTORY_FUNC()		pr_debug("[EXTD]:%s\n", __func__)
 
+/*
+#define RETIF(cond, rslt)       { if ((cond)) {HDMI_LOG("return in %d\n", __LINE__); return (rslt); } }
+#define RET_VOID_IF(cond)       { if ((cond)) {HDMI_LOG("return in %d\n", __LINE__); return; } }
+#define RETIF_NOLOG(cond, rslt) { if ((cond)) return (rslt); }
+#define RET_VOID_IF_NOLOG(cond) { if ((cond)) return; }
+#define RETIFNOT(cond, rslt)    { if (!(cond)) {HDMI_LOG("return in %d\n", __LINE__); return (rslt); } }
+*/
 #endif

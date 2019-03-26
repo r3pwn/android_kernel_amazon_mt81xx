@@ -7,7 +7,6 @@
 
 		irq {
 			compatible = "android,trusty-irq-v1";
-			ppi-interrupt-parent = <&gic>;
 		};
 
 		log {
@@ -17,10 +16,5 @@
 		virtio {
 			compatible = "android,trusty-virtio-v1";
 		};
-
-		mtee {
-			compatible = "mediatek,trusty-mtee-v1";
-		};
-
 	};
 };

@@ -237,14 +237,8 @@ extern u32 bq24297_get_pg_stat(void);
 extern u32 bq24297_get_vsys_stat(void);
 /* --------------------------------------------------------- */
 extern void bq24297_dump_register(void);
-extern u32 bq24297_read_interface(u8 RegNum, u8 *val, u8 MASK, u8 SHIFT);
+extern u32 bq24297_read_interface(u8 RegNum, u8 *val, u8 MASK,
+					 u8 SHIFT);
 s32 bq24297_control_interface(int cmd, void *data);
-extern int hw_charger_type_detection(void);
-
-/* spm utility */
-extern int slp_get_wake_reason(void);
-
-/* spm utility */
-extern int slp_get_wake_reason(void);
 
 #endif				/* _bq24297_SW_H_ */

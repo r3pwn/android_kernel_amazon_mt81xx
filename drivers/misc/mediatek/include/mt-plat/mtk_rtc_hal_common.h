@@ -20,6 +20,9 @@ typedef enum {
 	RTC_PWRON_LOGO,
 	RTC_32K_LESS,
 	RTC_LP_DET,
+	RTC_ENTER_KPOC,
+	RTC_LONG_PRESS_RST,
+	RTC_SW_LONG_PRESS_RST,
 	RTC_SPAR_NUM
 } rtc_spare_enum;
 

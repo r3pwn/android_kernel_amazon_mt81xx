@@ -81,6 +81,14 @@ config THERMAL_DEFAULT_GOV_USER_SPACE
 	  Select this if you want to let the user space manage the
 	  platform thermals.
 
+config THERMAL_DEFAULT_GOV_VIRTUAL_SENSOR
+       bool "virtual_sensor"
+       select THERMAL_GOV_VIRTUAL_SENSOR
+       help
+	  Use the virtual_sensor governor as default. This throttles the
+	  devices cooling actions based on the thermal zone trip
+	  points and the cooling states.
+
 endchoice
 
 config THERMAL_BACKWARD_COMPATIBLE
@@ -102,6 +110,15 @@ config THERMAL_GOV_STEP_WISE
 	  Enable this to manage platform thermals using a simple linear
 	  governor.
 
+config THERMAL_GOV_TRIP_STEP_WISE
+	bool "Trip_step_wise thermal governor"
+	default n
+	help
+	  Enable this to manage platform thermals using a simple
+	  linear governor.
+	  This governor is triggered based on the trip points.
+	  This will be useful for platforms using the generic thermal interface
+
 config THERMAL_GOV_BANG_BANG
 	bool "Bang Bang thermal governor"
 	default n
@@ -116,6 +133,14 @@ config THERMAL_GOV_USER_SPACE
 	bool "User_space thermal governor"
 	help
 	  Enable this to let the user space manage the platform thermals.
+
+config THERMAL_GOV_VIRTUAL_SENSOR
+       bool "VIRTUAL_SENSOR thermal governor"
+       help
+         Enable this to manage platform thermals using virtual_sensor governor.
+	 This throttles the devices cooling actions based on the thermal
+	 zone trip points and the cooling states.
+	 This will be useful for virtual_sensor thermal driver.
 
 config CPU_THERMAL
 	bool "generic cpu cooling support"
@@ -271,6 +296,15 @@ config ACPI_THERMAL_REL
 	tristate
 	depends on ACPI
 
+config VIRTUAL_SENSOR_THERMAL
+        bool "VIRTUAL_SENSOR thermal management"
+        depends on INPUT_TEMPERATURE_TMP103
+        help
+          Adds VIRTUAL_SENSOR thermal management implementation according to the thermal
+          management framework. A thermal zone with several trip points will be
+          created. Cooling devices can be bound to the trip points to cool this
+          thermal zone if trip points reached.
+
 menu "Texas Instruments thermal drivers"
 source "drivers/thermal/ti-soc-thermal/Kconfig"
 endmenu
@@ -286,3 +320,8 @@ source "drivers/thermal/st/Kconfig"
 endmenu
 
 endif
+
+config MTK_TMP103_SUPPORT
+	bool "MTK_TMP103_SUPPORT"
+	help
+	   yes: enable

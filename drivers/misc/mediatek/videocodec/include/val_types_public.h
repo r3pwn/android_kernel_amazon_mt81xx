@@ -297,10 +297,10 @@ typedef struct _VAL_VCODEC_M4U_BUFFER_CONFIG_T {
  * @par Description
  *  This is a parameter for memory usaged function
  */
-typedef struct _VAL_MEMORY_T {                /* union extend 64bits for TEE*/
+typedef struct _VAL_MEMORY_T {
 	VAL_MEM_TYPE_T  eMemType;                   /* /< [IN]     The allocation memory type */
 	union {
-		VAL_ULONG_T     u4MemSize;              /* /< [IN]     The size of memory allocation */
+	VAL_ULONG_T     u4MemSize;                  /* /< [IN]     The size of memory allocation */
 		VAL_UINT64_T u4MemSize_ext64;
 	};
 	union {
@@ -322,7 +322,6 @@ typedef struct _VAL_MEMORY_T {                /* union extend 64bits for TEE*/
 	};
 	VAL_MEM_CODEC_T eMemCodec;                  /* /< [IN]     The memory codec for VENC or VDEC */
 	VAL_UINT32_T    i4IonShareFd;
-
 	union {
 		struct ion_handle *pIonBufhandle;
 		VAL_UINT64_T pIonBufhandle_ext64;

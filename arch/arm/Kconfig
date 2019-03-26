@@ -4,6 +4,7 @@ config ARM
 	select ARCH_BINFMT_ELF_RANDOMIZE_PIE
 	select ARCH_HAS_ATOMIC64_DEC_IF_POSITIVE
 	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
+	select ARCH_HAS_CRASH_NOTES if CRASH_NOTES
 	select ARCH_HAVE_CUSTOM_GPIO_H
 	select ARCH_MIGHT_HAVE_PC_PARPORT
 	select ARCH_SUPPORTS_ATOMIC_RMW
@@ -180,6 +181,9 @@ config ARCH_HAS_ILOG2_U64
 	bool
 
 config ARCH_HAS_BANDGAP
+	bool
+
+config ARCH_HAS_CRASH_NOTES
 	bool
 
 config GENERIC_HWEIGHT
@@ -803,7 +807,7 @@ config ARCH_MT6735
 	select MTK_SYSTRACKER
 	select MTK_SYS_CIRQ
 	select MTK_EIC
-	select MTK_GIC
+	select MTK_IRQ
 	select COMMON_CLK if !MTK_CLKMGR
 	select CPU_IDLE
 	select PINCTRL
@@ -813,10 +817,6 @@ config ARCH_MT6735
 	select KERNEL_MODE_NEON
 	select CRYPTO_AES_ARM32_CE
 	select ARM_ERRATA_836870
-	select MTK_IRQ_NEW_DESIGN
-	select MTK_IRQ_NEW_DESIGN_DEBUG
-	select MTK_POWER_GS
-	select MTK_CPU_STRESS
 	help
 	  This enable support for MediaTek MT6735
 
@@ -836,7 +836,7 @@ config ARCH_MT6735M
 	select MTK_SYSTRACKER
 	select MTK_SYS_CIRQ
 	select MTK_EIC
-	select MTK_GIC
+	select MTK_IRQ
 	select ARM_HAS_SG_CHAIN
 	select PINCTRL
 	select PINCTRL_MT6735
@@ -846,11 +846,6 @@ config ARCH_MT6735M
 	select MTK_BASE_POWER
 	select KERNEL_MODE_NEON
 	select CRYPTO_AES_ARM32_CE
-	select ARM_ERRATA_836870
-	select MTK_IRQ_NEW_DESIGN
-	select MTK_IRQ_NEW_DESIGN_DEBUG
-	select MTK_POWER_GS
-	select MTK_CPU_STRESS
 	help
 	  This enables support for MediaTek MT6735M
 	  Support for k35mv1
@@ -883,9 +878,6 @@ config ARCH_MT6753
 	select KERNEL_MODE_NEON
 	select CRYPTO_AES_ARM32_CE
 	select MTK_BASE_POWER
-	select ARM_ERRATA_836870
-	select MTK_POWER_GS
-	select MTK_CPU_STRESS
 	help
 	  This enable support for MediaTek MT6753
 	  To enable related drivers
@@ -908,27 +900,19 @@ config ARCH_MT6580
 	select GENERIC_SCHED_CLOCK
 	select VFP_OPT
 	select ARCH_REQUIRE_GPIOLIB
+	select MTK_CPU_STRESS
 	select KERNEL_MODE_NEON
 	select CRYPTO_AES_ARM_BS
-	select CRYPTO_SHA2_ARM_CE
 	select MTK_SYS_CIRQ
 	select ARM_HAS_SG_CHAIN
 	select MTK_BASE_POWER
 	select MTK_EIC
-	select MTK_WATCHPOINT
 	select PINCTRL
 	select PINCTRL_MT6580
 	select MFD_SYSCON
-	select MTK_DEBUG_LATCH
 	select MTK_LASTPC
 	select CPU_IDLE
 	select ARM_MT6735_CPUIDLE
-	select MTK_SYSTRACKER_V2
-	select ARM_ERRATA_814220
-	select MTK_POWER_GS
-	select MTK_CPU_STRESS
-	select MTK_IRQ_NEW_DESIGN
-	select MTK_IRQ_NEW_DESIGN_DEBUG
 	help
 	  This enable support for MediaTek MT6580
 
@@ -955,36 +939,8 @@ config ARCH_MT6755
 	select CRYPTO_AES_ARM32_CE
 	select MTK_BASE_POWER
 	select ARM_HAS_SG_CHAIN
-	select COMMON_CLK if !MTK_CLKMGR
-	select PINCTRL_MT6735
-	select PINCTRL_MT6755
-	select MTK_POWER_GS
-	select MTK_LM_MODE
 	help
 	  This enable support for MediaTek MT6755
-
-config ARCH_MT8127
-	bool "MediaTek MT8127"
-	select ARCH_MEDIATEK
-	select SPARSE_IRQ
-	select COMMON_CLK if !MTK_CLKMGR
-	select GENERIC_CLOCKEVENTS
-	select ARM_AMBA
-	select CPU_V7
-	select HAVE_SMP
-	select NEED_MACH_MEMORY_H
-	select IRQ_DOMAIN
-	select IRQ_DOMAIN_DEBUG
-	select ARCH_REQUIRE_GPIOLIB
-	select KERNEL_MODE_NEON
-	select CRYPTO_AES_ARM_BS
-	select ARM_HAS_SG_CHAIN
-	select MTK_BASE_POWER
-	select MFD_SYSCON
-	select CPU_IDLE
-	select ARM_ERRATA_814220
-	help
-	  This enable support for MediaTek MT8127
 
 
 
@@ -1456,17 +1412,6 @@ config ARM_ERRATA_773022
 	  (up to r0p4) erratum. In certain rare sequences of code, the
 	  loop buffer may deliver incorrect instructions. This
 	  workaround disables the loop buffer to avoid the erratum.
-
-config ARM_ERRATA_814220
-	bool "ARM errata: L2 set/way cache maintenance operation can overtake an L1 set/way cache maintenance operation"
-	depends on CPU_V7
-	help
-	  This option enables the workaround for erratum 814220
-	  Code that intends to clean dirty data from L1 to L2 and then from L2 to L3 using set/way operations might not
-	  behave as expected. The L2 to L3 operation might happen first and result in dirty data remaining in L2 after the
-	  L1 to L2 operation has completed.
-
-	  This workaround put a DSB before changing cache levels to avoid Errata
 
 config ARM_ERRATA_836870
         bool "Cortex-A53: 836870: Non-allocating reads might prevent a store exclusive from passing"
@@ -2296,6 +2241,14 @@ config CRASH_DUMP
 	  memory address not used by the main kernel
 
 	  For more details see Documentation/kdump/kdump.txt
+
+config CRASH_NOTES
+	bool "Support storing crash notes at panic"
+	depends on !KEXEC
+	help
+	  Generate kdump style crash notes at the time of a panic and fill it
+	  with the crashed context to support analysis of the memory dump with
+	  tools like Redhat CRASH.
 
 config AUTO_ZRELADDR
 	bool "Auto calculation of the decompressed kernel image address"

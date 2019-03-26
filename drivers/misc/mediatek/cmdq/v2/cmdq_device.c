@@ -31,32 +31,32 @@ struct device *cmdq_dev_get(void)
 	return gCmdqDev.pDev;
 }
 
-uint32_t cmdq_dev_get_irq_id(void)
+const uint32_t cmdq_dev_get_irq_id(void)
 {
 	return gCmdqDev.irqId;
 }
 
-uint32_t cmdq_dev_get_irq_secure_id(void)
+const uint32_t cmdq_dev_get_irq_secure_id(void)
 {
 	return gCmdqDev.irqSecId;
 }
 
-long cmdq_dev_get_module_base_VA_GCE(void)
+const long cmdq_dev_get_module_base_VA_GCE(void)
 {
 	return gCmdqDev.regBaseVA;
 }
 
-long cmdq_dev_get_module_base_PA_GCE(void)
+const long cmdq_dev_get_module_base_PA_GCE(void)
 {
 	return gCmdqDev.regBasePA;
 }
 
-long cmdq_dev_get_module_base_VA_MMSYS_CONFIG(void)
+const long cmdq_dev_get_module_base_VA_MMSYS_CONFIG(void)
 {
 	return gMMSYS_CONFIG_Base_VA;
 }
 
-long cmdq_dev_get_APXGPT2_count(void)
+const long cmdq_dev_get_APXGPT2_count(void)
 {
 	return gAPXGPT2Count;
 }
@@ -86,7 +86,7 @@ void cmdq_dev_deinit_module_base_VA(void)
 	cmdq_mdp_get_func()->deinitModuleBaseVA();
 }
 
-long cmdq_dev_alloc_module_base_VA_by_name(const char *name)
+const long cmdq_dev_alloc_module_base_VA_by_name(const char *name)
 {
 	unsigned long VA;
 	struct device_node *node = NULL;
@@ -105,16 +105,10 @@ void cmdq_dev_free_module_base_VA(const long VA)
 long cmdq_dev_get_gce_node_PA(struct device_node *node, int index)
 {
 	struct resource res;
-	int status;
 	long regBasePA = 0L;
 
-	do {
-		status = of_address_to_resource(node, index, &res);
-		if (status < 0)
-			break;
-
-		regBasePA = (0L | res.start);
-	} while (0);
+	of_address_to_resource(node, index, &res);
+	regBasePA = (0L | res.start);
 
 	return regBasePA;
 }
@@ -191,9 +185,6 @@ uint32_t cmdq_dev_enable_device_clock(bool enable, struct clk *clk_module, const
 {
 	int result = 0;
 
-	if (IS_ERR(clk_module))
-		return PTR_ERR(clk_module);
-
 	if (enable) {
 		result = clk_prepare_enable(clk_module);
 		CMDQ_MSG("enable clock with module: %s, result: %d\n", clkName, result);
@@ -201,7 +192,6 @@ uint32_t cmdq_dev_enable_device_clock(bool enable, struct clk *clk_module, const
 		clk_disable_unprepare(clk_module);
 		CMDQ_MSG("disable clock with module: %s\n", clkName);
 	}
-
 	return result;
 }
 
@@ -425,50 +415,6 @@ void cmdq_dev_test_dts_correctness(void)
 
 	CMDQ_LOG("APXGPT2_Count = 0x%08lx\n", gAPXGPT2Count);
 #endif
-}
-
-void cmdq_dev_get_dts_setting(cmdq_dts_setting *dts_setting)
-{
-	int status;
-
-	do {
-		status = of_property_read_u32(gCmdqDev.pDev->of_node,
-			"max_prefetch_cnt", &dts_setting->prefetch_thread_count);
-		if (status < 0)
-			break;
-		status = of_property_read_u32_array(gCmdqDev.pDev->of_node, "prefetch_size",
-			dts_setting->prefetch_size, dts_setting->prefetch_thread_count);
-		if (status < 0)
-			break;
-	} while (0);
-}
-
-void cmdq_dev_init_resource(CMDQ_DEV_INIT_RESOURCE_CB init_cb)
-{
-	int status, index;
-	uint32_t count;
-
-	do {
-		status = of_property_read_u32(gCmdqDev.pDev->of_node,
-			"sram_share_cnt", &count);
-		if (status < 0)
-			break;
-
-		for (index = 0; index < count; index++) {
-			uint32_t engine, event;
-
-			status = of_property_read_u32_index(gCmdqDev.pDev->of_node, "sram_share_engine",
-				index, &engine);
-			if (status < 0)
-				break;
-			status = of_property_read_u32_index(gCmdqDev.pDev->of_node, "sram_share_event",
-				index, &event);
-			if (status < 0)
-				break;
-			if (init_cb != NULL)
-				init_cb(engine, event);
-		}
-	} while (0);
 }
 
 void cmdq_dev_init_device_tree(struct device_node *node)

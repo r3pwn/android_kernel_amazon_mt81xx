@@ -962,4 +962,45 @@ config TOUCHSCREEN_ZFORCE
 	  To compile this driver as a module, choose M here: the
 	  module will be called zforce_ts.
 
+config TOUCHSCREEN_GTP9XX
+	tristate "Goodix GTP 9xx touchscreens"
+	depends on I2C
+	default no
+	help
+	  Say Y here if you have a touchscreen using the GTP9xx
+	  touchscreen from Goodix.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_GT967
+	tristate "Goodix GTP 967 touchscreen"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have a touchscreen using the GTP967
+	  touchscreen from Goodix.
+
+	  If unsure, say N.
+
+config GTP9XX_SLEEP_MODE
+	tristate "Goodix GTP 9xx touchscreens"
+	depends on I2C
+	default no
+	help
+	  Say Y here it will enter sleep mode using the GTP9xx
+	  touchscreen from Goodix.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_MTK_FT5526
+	bool "FT5526 for Mediatek package"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have FT5526 touch panel.
+
+	  If unsure, say N.
+
+source "drivers/input/touchscreen/mediatek/FT5526/Kconfig"
+
 endif

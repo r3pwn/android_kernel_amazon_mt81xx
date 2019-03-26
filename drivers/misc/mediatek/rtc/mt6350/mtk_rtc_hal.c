@@ -39,7 +39,6 @@
 #endif
 
 #include <mt_gpio.h>
-#include <mt-plat/charging.h>
 
 #define hal_rtc_xinfo(fmt, args...)		\
 	pr_notice(fmt, ##args)
@@ -185,7 +184,7 @@ void hal_rtc_bbpu_pwdn(void)
 		rtc_write_trigger();
 	}
 	ret_val = hal_rtc_get_spare_register(RTC_32K_LESS);
-	if (!ret_val && pmic_chrdet_status() == KAL_FALSE) {
+	if (!ret_val) {
 #if defined(CONFIG_MTK_FPGA)
 		hal_rtc_xinfo("hal_rtc_bbpu_pwdn FPGA\n");
 		rtc_bbpu_pwrdown(true);

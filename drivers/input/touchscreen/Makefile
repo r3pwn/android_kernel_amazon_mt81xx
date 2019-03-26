@@ -80,3 +80,5 @@ obj-$(CONFIG_TOUCHSCREEN_WM97XX_ZYLONITE)	+= zylonite-wm97xx.o
 obj-$(CONFIG_TOUCHSCREEN_W90X900)	+= w90p910_ts.o
 obj-$(CONFIG_TOUCHSCREEN_TPS6507X)	+= tps6507x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_ZFORCE)	+= zforce_ts.o
+obj-$(CONFIG_TOUCHSCREEN_GTP9XX)	+= gt9xx.o gt9xx_update.o goodix_tool.o
+obj-$(CONFIG_TOUCHSCREEN_MTK_FT5526)	+= mediatek/FT5526/

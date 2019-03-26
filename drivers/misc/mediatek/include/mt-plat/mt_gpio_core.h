@@ -11,6 +11,11 @@
 #endif
 #include <mach/mt_gpio_ext.h>
 */
+
+#if (defined(CONFIG_FPGA_EARLY_PORTING))
+#include <mach/mt_gpio_fpga.h>
+#endif
+
 #ifdef CONFIG_OF
 #include <linux/of_device.h>
 #endif
@@ -33,8 +38,8 @@
 #define ERWRAPPER		3
 
 #define GPIO_RETERR(res, fmt, args...)                                               \
-do {                                                                             \
-		GPIOERR("%s:%04d: " fmt"\n", __func__, __LINE__, ##args);\
+do {                                                                       \
+		GPIOLOG("%s:%04d: " fmt"\n", __func__, __LINE__, ##args);\
 		return res;                                                                  \
 } while (0)
 #define GIO_INVALID_OBJ(ptr)   ((ptr) != mt_gpio)
@@ -44,16 +49,17 @@ enum {
 	MT_EXT,
 	MT_NOT_SUPPORT,
 };
+
 #if defined CONFIG_FPGA_EARLY_PORTING
 
 
 #define MT_GPIO_PLACE(pin) ({\
 	int ret = -1;\
-	if ((pin >= 0) && (pin < 200)) {\
-		ret = -1;\
+	if ((pin >= MT_GPIO_BASE_START) && (pin < MT_GPIO_BASE_MAX)) {\
+		ret = MT_BASE;\
 		GPIOFUC("pin in base is %d\n", (int)pin);\
-	} else if ((pin >= 0) && (pin < 200)) {\
-		ret = -1;\
+	} else if ((pin >= MT_GPIO_EXT_START) && (pin < MT_GPIO_EXT_MAX)) {\
+		ret = MT_EXT;\
 		GPIOFUC("pin in ext is %d\n", (int)pin);\
 	} else{\
 		GPIOERR("Pin number error %d\n", (int)pin);	\
@@ -78,6 +84,7 @@ enum {
 	ret; })
 
 #endif
+
 /* int where_is(unsigned long pin) */
 /* { */
 /* int ret = -1; */

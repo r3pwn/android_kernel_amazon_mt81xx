@@ -17,7 +17,6 @@
 #include <linux/seq_file.h>
 #include <linux/file.h>
 #include <linux/kthread.h>
-/* #include <linux/xlog.h> */
 #include <linux/delay.h>
 
 #include "mtk_sync.h"

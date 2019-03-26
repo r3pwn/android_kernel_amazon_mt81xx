@@ -10,7 +10,8 @@
 
 typedef enum {
 	ION_CMD_SYSTEM,
-	ION_CMD_MULTIMEDIA
+	ION_CMD_MULTIMEDIA,
+	ION_CMD_MULTIMEDIA_SEC
 } ION_CMDS;
 
 typedef enum {
@@ -45,6 +46,11 @@ typedef enum {
 typedef enum {
 	ION_ERROR_CONFIG_LOCKED = 0x10000
 } ION_ERROR_E;
+
+/* mm or mm_sec heap flag which is do not conflist with ION_HEAP_FLAG_DEFER_FREE */
+#define ION_FLAG_MM_HEAP_INIT_ZERO (1 << 16)
+#define ION_FLAG_MM_HEAP_SEC_PA (1 << 18)
+
 
 typedef struct ion_sys_cache_sync_param {
 	union {
@@ -87,7 +93,7 @@ typedef struct ion_sys_get_phys_param {
 		struct ion_handle *kernel_handle;
 	};
 	unsigned int phy_addr;
-	unsigned long len;
+	unsigned int len;
 } ion_sys_get_phys_param_t;
 
 #define ION_MM_DBG_NAME_LEN 16
@@ -170,7 +176,7 @@ typedef struct ion_mm_data {
 } ion_mm_data_t;
 
 #ifdef __KERNEL__
-#include <aee.h>
+
 #define ION_LOG_TAG "ion_dbg"
 #define IONMSG(string, args...)	pr_err("[ION]"string, ##args)
 #define ion_aee_print(string, args...) do {\
@@ -178,6 +184,11 @@ typedef struct ion_mm_data {
 	snprintf(ion_name, 100, "["ION_LOG_TAG"]"string, ##args); \
 	aee_kernel_warning(ion_name, "["ION_LOG_TAG"]error:"string, ##args);  \
 } while (0)
+#ifdef ION_DBG
+#define IONDBG(string, args...)	pr_err("[ION]"string, ##args)
+#else
+#define IONDBG(string, args...)
+#endif
 
 /* Exported global variables */
 extern struct ion_device *g_ion_device;
@@ -206,6 +217,16 @@ int ion_dma_map_area(int fd, ion_user_handle_t handle, int dir);
 int ion_dma_unmap_area(int fd, ion_user_handle_t handle, int dir);
 void ion_dma_map_area_va(void *start, size_t size, ION_DMA_DIR dir);
 void ion_dma_unmap_area_va(void *start, size_t size, ION_DMA_DIR dir);
+
+struct ion_heap *ion_mm_heap_create(struct ion_platform_heap *);
+void ion_mm_heap_destroy(struct ion_heap *);
+
+struct ion_heap *ion_fb_heap_create(struct ion_platform_heap *);
+void ion_fb_heap_destroy(struct ion_heap *);
+
+struct ion_heap *ion_sec_heap_create(struct ion_platform_heap *unused);
+void ion_sec_heap_destroy(struct ion_heap *heap);
+
 
 #endif
 

@@ -29,6 +29,7 @@ struct acc_hw *get_cust_acc(void)
 	return &accel_cust;
 }
 /*----------------------------------------------------------------------------*/
+#define DEBUG 1
 /*----------------------------------------------------------------------------*/
 #define CONFIG_MPU6050_LOWPASS	/*apply low pass filter on output */
 #define SW_CALIBRATION
@@ -346,7 +347,7 @@ static int MPU6050_SetDataResolution(struct mpu6050_i2c_data *obj)
 /*----------------------------------------------------------------------------*/
 static int MPU6050_ReadData(struct i2c_client *client, s16 data[MPU6050_AXES_NUM])
 {
-	struct mpu6050_i2c_data *priv = i2c_get_clientdata(client);
+	struct mpu6050_i2c_data *priv;
 	u8 buf[MPU6050_DATA_LEN] = { 0 };
 	int err = 0;
 
@@ -354,6 +355,7 @@ static int MPU6050_ReadData(struct i2c_client *client, s16 data[MPU6050_AXES_NUM
 	if (NULL == client)
 		return -EINVAL;
 
+	priv = i2c_get_clientdata(client);
 
 	{
 		/* write then burst read */
@@ -794,7 +796,7 @@ static int MPU6050_ReadAllReg(struct i2c_client *client, char *buf, int bufsize)
 		err = MPU6050_SetPowerMode(client, true);
 		if (err)
 			GSE_ERR("Power on mpu6050 error %d!\n", err);
-			msleep(50);
+		msleep(50);
 	}
 
 	mpu_i2c_read_block(client, addr, buff, total_len);
@@ -851,7 +853,7 @@ static int MPU6050_ReadSensorData(struct i2c_client *client, char *buf, int bufs
 		res = MPU6050_SetPowerMode(client, true);
 		if (res)
 			GSE_ERR("Power on mpu6050 error %d!\n", res);
-			msleep(50);
+		msleep(50);
 	}
 
 	res = MPU6050_ReadData(client, obj->data);
@@ -883,11 +885,13 @@ static int MPU6050_ReadSensorData(struct i2c_client *client, char *buf, int bufs
 /*----------------------------------------------------------------------------*/
 static int MPU6050_ReadRawData(struct i2c_client *client, char *buf)
 {
-	struct mpu6050_i2c_data *obj = (struct mpu6050_i2c_data *)i2c_get_clientdata(client);
+	struct mpu6050_i2c_data *obj;
 	int res = 0;
 
 	if (!buf || !client)
 		return -EINVAL;
+
+	obj = (struct mpu6050_i2c_data *)i2c_get_clientdata(client);
 
 	if (atomic_read(&obj->suspend))
 		return -EIO;

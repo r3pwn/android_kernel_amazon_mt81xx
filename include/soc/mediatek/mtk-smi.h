@@ -13,47 +13,41 @@
  */
 #ifndef MTK_IOMMU_SMI_H
 #define MTK_IOMMU_SMI_H
-
 #include <linux/device.h>
 
 #ifdef CONFIG_MTK_SMI
-
 /*
- * Record the iommu info for each port in the local arbiter.
- * It is only for iommu.
+ * Enable iommu for each port, it is only for iommu.
  *
  * Returns 0 if successfully, others if failed.
  */
 int mtk_smi_config_port(struct device *larbdev, unsigned int larbportid,
-			bool enable);
+			bool iommuen);
 /*
- * The two function below config iommu and enable/disable the clock
- * for the larb.
+ * The two function below help open/close the clock of the larb.
  *
- * mtk_smi_larb_get must be called before the multimedia HW work.
- * mtk_smi_larb_put must be called after HW done.
+ * mtk_smi_larb_get must be called before the multimedia h/w work.
+ * mtk_smi_larb_put must be called after h/w done.
  * Both should be called in non-atomic context.
  *
  * Returns 0 if successfully, others if failed.
  */
-int mtk_smi_larb_get(struct device *larbdev);
-void mtk_smi_larb_put(struct device *larbdev);
+int mtk_smi_larb_get(struct device *plarbdev);
+void mtk_smi_larb_put(struct device *plarbdev);
 
 #else
 
-static int
+static inline int
 mtk_smi_config_port(struct device *larbdev, unsigned int larbportid,
-		    bool enable)
+		    bool iommuen)
 {
 	return 0;
 }
-
-static inline int mtk_smi_larb_get(struct device *larbdev)
+static inline int mtk_smi_larb_get(struct device *plarbdev)
 {
 	return 0;
 }
-
-static inline void mtk_smi_larb_put(struct device *larbdev) { }
+static inline void mtk_smi_larb_put(struct device *plarbdev) { }
 
 #endif
 

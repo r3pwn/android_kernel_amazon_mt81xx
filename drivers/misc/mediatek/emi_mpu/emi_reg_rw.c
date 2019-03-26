@@ -22,7 +22,6 @@
 #include "mach/emi_mpu.h"
 #include "mach/mt_secure_api.h"
 
-static void __iomem *emi_base;
 
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_MTK_PSCI)
 static int is_emi_mpu_reg(unsigned int offset)
@@ -42,8 +41,6 @@ void mt_emi_reg_write(unsigned int data, unsigned int offset)
 		return;
 	}
 #endif
-	if (emi_base)
-		mt_reg_sync_writel(data, emi_base + offset);
 }
 
 unsigned int mt_emi_reg_read(unsigned int offset)
@@ -52,28 +49,14 @@ unsigned int mt_emi_reg_read(unsigned int offset)
 	if (is_emi_mpu_reg(offset))
 		return (unsigned int)emi_mpu_smc_read(offset);
 #endif
-	if (emi_base)
-		return readl((const void __iomem *)(emi_base + offset));
-
-	return 0;
+		return 0;
 }
 
 int mt_emi_mpu_set_region_protection(unsigned int start,
-				     unsigned int end,
-				     unsigned int region_permission)
+unsigned int end, unsigned int region_permission)
 {
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_MTK_PSCI)
-	return emi_mpu_smc_set(start, end, region_permission);
+		return emi_mpu_smc_set(start, end, region_permission);
 #endif
-	return 0;
-}
-
-void mt_emi_reg_base_set(void *base)
-{
-	emi_base = base;
-}
-
-void *mt_emi_reg_base_get(void)
-{
-	return emi_base;
+		return 0;
 }

@@ -147,23 +147,21 @@ over:
 
 		if (!fd_dump_all_files) {
 			struct task_struct *p;
-			struct files_struct *files;
-			pid_t pid;
 
 			fd_dump_all_files = 0x1;
-
+			pr_err("[FDLEAK](PID:%d)files %ld over old_max:%ld",
+					current->pid, get_nr_files(), old_max);
+			pid_t pid;
 			for_each_process(p) {
-				if (p->flags & PF_KTHREAD)
-					continue;
-
-				files = p->files;
-				if (files) {
-					struct fdtable *fdt = files_fdtable(files);
-
-					if (fdt) {
-						pid = p->pid;
-						pr_err("[FDLEAK]dump FDs for [%d:%s]\n", pid, p->comm);
-						fd_show_open_files(pid, files, fdt);
+				if (p) {
+					struct files_struct *files = p->files;
+					if (files) {
+						struct fdtable *fdt = files_fdtable(files);
+						if (fdt) {
+							pid = p->pid;
+							pr_err("[FDLEAK]dump FDs for [%d:%s]\n", pid, p->comm);
+							fd_show_open_files(pid, files, fdt);
+						}
 					}
 				}
 			}

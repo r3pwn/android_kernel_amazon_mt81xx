@@ -16,8 +16,10 @@
 #include "mt_charging.h"
 #include <mt-plat/upmu_common.h>
 #include <mt-plat/mt_reboot.h>
+/* #include <mach/mt_gpio_def.h> */
+/* #include <mach/mt_sleep.h> */
 #include <mt-plat/mt_boot.h>
-
+/* #include <mach/mt_gpio.h> */
 
 /**********************************************************
  *
@@ -44,7 +46,6 @@ static struct switch_dev bq24297_reg09;
 static bool charging_type_det_done = true;
 static u8 bq24297_reg[bq24297_REG_NUM] = { 0 };
 
-static u32 part_num;
 static u8 g_reg_value_bq24297;
 
 static const u32 VBAT_CV_VTH[] = {
@@ -79,16 +80,15 @@ static const u32 INPUT_CS_VTH[] = {
 	CHARGE_CURRENT_1800_00_MA
 };
 
-/* for MT6391 */
 static const u32 VCDT_HV_VTH[] = {
-	BATTERY_VOLT_04_000000_V, BATTERY_VOLT_04_100000_V, BATTERY_VOLT_04_150000_V,
-	    BATTERY_VOLT_04_200000_V,
-	BATTERY_VOLT_04_250000_V, BATTERY_VOLT_04_300000_V, BATTERY_VOLT_04_350000_V,
-	    BATTERY_VOLT_04_400000_V,
-	BATTERY_VOLT_04_450000_V, BATTERY_VOLT_04_500000_V, BATTERY_VOLT_04_550000_V,
-	    BATTERY_VOLT_04_600000_V,
-	BATTERY_VOLT_07_000000_V, BATTERY_VOLT_07_500000_V, BATTERY_VOLT_08_500000_V,
-	    BATTERY_VOLT_10_500000_V
+	BATTERY_VOLT_04_200000_V, BATTERY_VOLT_04_250000_V, BATTERY_VOLT_04_300000_V,
+	BATTERY_VOLT_04_350000_V,
+	BATTERY_VOLT_04_400000_V, BATTERY_VOLT_04_450000_V, BATTERY_VOLT_04_500000_V,
+	BATTERY_VOLT_04_550000_V,
+	BATTERY_VOLT_04_600000_V, BATTERY_VOLT_06_000000_V, BATTERY_VOLT_06_500000_V,
+	BATTERY_VOLT_07_000000_V,
+	BATTERY_VOLT_07_500000_V, BATTERY_VOLT_08_500000_V, BATTERY_VOLT_09_500000_V,
+	BATTERY_VOLT_10_500000_V
 };
 
 __attribute__ ((weak))
@@ -836,17 +836,10 @@ static u32 charging_get_charger_type(void *data)
 	u32 count = 0;
 
 #if 0				/*defined(CONFIG_POWER_EXT) */
-	*(int *)(data) = STANDARD_HOST;
+	*(int *) (data) = STANDARD_HOST;
 #else
 
 	charging_type_det_done = false;
-
-	/* for BQ24296 */
-	if (part_num == 0x1) {
-		*(int *)(data) = hw_charger_type_detection();
-		charging_type_det_done = true;
-		return status;
-	}
 
 	battery_log(BAT_LOG_CRTI, "use BQ24297 charger detection\r\n");
 
@@ -936,7 +929,7 @@ static u32 charging_get_charger_type(void *data)
 
 	pr_warn("charging_get_charger_type = %d\n", charger_type);
 
-	*(int *)(data) = charger_type;
+	*(int *) (data) = charger_type;
 
 	charging_type_det_done = true;
 #endif
@@ -946,14 +939,14 @@ static u32 charging_get_charger_type(void *data)
 static u32 charging_get_is_pcm_timer_trigger(void *data)
 {
 	u32 status = STATUS_OK;
-
-	if (slp_get_wake_reason() == 3)
+/*  TODO: depend on spm, which would be porting later.
+	if (slp_get_wake_reason() == WR_PCM_TIMER)
 		*(bool *) (data) = true;
 	else
 		*(bool *) (data) = false;
 
 	battery_log(BAT_LOG_CRTI, "slp_get_wake_reason=%d\n", slp_get_wake_reason());
-
+*/
 	*(bool *) (data) = false;
 	return status;
 }
@@ -1022,47 +1015,34 @@ static u32 charging_boost_enable(void *data)
 	return status;
 }
 
-static u32(*charging_func[CHARGING_CMD_NUMBER]) (void *data);
+static u32(*const charging_func[CHARGING_CMD_NUMBER]) (void *data) = {
+charging_hw_init,
+	    charging_dump_register,
+	    charging_enable,
+	    charging_set_cv_voltage,
+	    charging_get_current,
+	    charging_set_current,
+	    charging_get_input_current,
+	    charging_set_input_current,
+	    charging_get_charging_status,
+	    charging_reset_watch_dog_timer,
+	    charging_set_hv_threshold,
+	    charging_get_hv_status,
+	    charging_get_battery_status,
+	    charging_get_charger_det_status,
+	    charging_get_charger_type,
+	    charging_get_is_pcm_timer_trigger,
+	    charging_set_platform_reset,
+	    charging_get_platform_boot_mode, charging_enable_powerpath, charging_boost_enable};
 
 s32 bq24297_control_interface(int cmd, void *data)
 {
 	s32 status;
 
-	static bool is_init;
-
-	if (is_init == false) {
-		charging_func[CHARGING_CMD_INIT] = charging_hw_init;
-		charging_func[CHARGING_CMD_DUMP_REGISTER] = charging_dump_register;
-		charging_func[CHARGING_CMD_ENABLE] = charging_enable;
-		charging_func[CHARGING_CMD_SET_CV_VOLTAGE] = charging_set_cv_voltage;
-		charging_func[CHARGING_CMD_GET_CURRENT] = charging_get_current;
-		charging_func[CHARGING_CMD_SET_CURRENT] = charging_set_current;
-		charging_func[CHARGING_CMD_GET_INPUT_CURRENT] = charging_get_input_current;
-		charging_func[CHARGING_CMD_SET_INPUT_CURRENT] = charging_set_input_current;
-		charging_func[CHARGING_CMD_GET_CHARGING_STATUS] = charging_get_charging_status;
-		charging_func[CHARGING_CMD_RESET_WATCH_DOG_TIMER] = charging_reset_watch_dog_timer;
-		charging_func[CHARGING_CMD_SET_HV_THRESHOLD] = charging_set_hv_threshold;
-		charging_func[CHARGING_CMD_GET_HV_STATUS] = charging_get_hv_status;
-		charging_func[CHARGING_CMD_GET_BATTERY_STATUS] = charging_get_battery_status;
-		charging_func[CHARGING_CMD_GET_CHARGER_DET_STATUS] =
-		    charging_get_charger_det_status;
-		charging_func[CHARGING_CMD_GET_CHARGER_TYPE] = charging_get_charger_type;
-		charging_func[CHARGING_CMD_GET_IS_PCM_TIMER_TRIGGER] =
-		    charging_get_is_pcm_timer_trigger;
-		charging_func[CHARGING_CMD_SET_PLATFORM_RESET] = charging_set_platform_reset;
-		charging_func[CHARGING_CMD_GET_PLATFORM_BOOT_MODE] =
-		    charging_get_platform_boot_mode;
-		charging_func[CHARGING_CMD_ENABLE_POWERPATH] = charging_enable_powerpath;
-		charging_func[CHARGING_CMD_BOOST_ENABLE] = charging_boost_enable;
-		is_init = true;
-	}
-
-	if (cmd < CHARGING_CMD_NUMBER && charging_func[cmd])
+	if (cmd < CHARGING_CMD_NUMBER)
 		status = charging_func[cmd] (data);
-	else {
-		pr_err("Unsupported charging command:%d!\n", cmd);
+	else
 		return STATUS_UNSUPPORTED;
-	}
 
 	return status;
 }
@@ -1144,7 +1124,7 @@ static irqreturn_t ops_bq24297_int_handler(int irq, void *dev_id)
 
 static int bq24297_driver_suspend(struct i2c_client *client, pm_message_t mesg)
 {
-	pr_debug("[bq24297_driver_suspend] client->irq(%d)\n", client->irq);
+	pr_info("[bq24297_driver_suspend] client->irq(%d)\n", client->irq);
 	if (client->irq > 0)
 		disable_irq(client->irq);
 
@@ -1153,7 +1133,7 @@ static int bq24297_driver_suspend(struct i2c_client *client, pm_message_t mesg)
 
 static int bq24297_driver_resume(struct i2c_client *client)
 {
-	pr_debug("[bq24297_driver_resume] client->irq(%d)\n", client->irq);
+	pr_info("[bq24297_driver_resume] client->irq(%d)\n", client->irq);
 	if (client->irq > 0)
 		enable_irq(client->irq);
 
@@ -1162,7 +1142,7 @@ static int bq24297_driver_resume(struct i2c_client *client)
 
 static void bq24297_driver_shutdown(struct i2c_client *client)
 {
-	pr_debug("[bq24297_driver_shutdown] client->irq(%d)\n", client->irq);
+	pr_info("[bq24297_driver_shutdown] client->irq(%d)\n", client->irq);
 	if (client->irq > 0)
 		disable_irq(client->irq);
 }
@@ -1172,7 +1152,7 @@ static int bq24297_driver_probe(struct i2c_client *client, const struct i2c_devi
 	int ret = 0;
 	struct regulator *i2c_reg = devm_regulator_get(&client->dev, "reg-i2c");
 
-	pr_debug("[bq24297_driver_probe]\n");
+	pr_info("[bq24297_driver_probe]\n");
 
 	new_client = client;
 
@@ -1183,23 +1163,18 @@ static int bq24297_driver_probe(struct i2c_client *client, const struct i2c_devi
 			dev_err(&client->dev, "Fail to set 1.8V to reg-i2c: %d\n", ret);
 
 		ret = regulator_get_voltage(i2c_reg);
-		pr_debug("bq24297 i2c voltage: %d\n", ret);
+		pr_info("bq24297 i2c voltage: %d\n", ret);
 
 		ret = regulator_enable(i2c_reg);
 		if (ret != 0)
 			dev_err(&client->dev, "Fail to enable reg-i2c: %d\n", ret);
 	}
 
-	part_num = bq24297_get_pn();
-
-	if (part_num == 0x3) {
-		pr_warn("BQ24297 device is found. register charger control.\n");
-		bat_charger_register(bq24297_control_interface);
-	} else if (part_num == 0x1) {
-		pr_warn("BQ24296 device is found. register charger control.\n");
+	if (bq24297_get_pn() == 0x3) {
+		pr_notice("BQ24297 device is found. register charger control.\n");
 		bat_charger_register(bq24297_control_interface);
 	} else {
-		pr_err("No BQ24297 device part number is found.\n");
+		pr_notice("No BQ24297 device part number is found.\n");
 		return 0;
 	}
 
@@ -1215,7 +1190,7 @@ static int bq24297_driver_probe(struct i2c_client *client, const struct i2c_devi
 
 	if (client->irq > 0) {
 
-		pr_debug("[bq24297_driver_probe] enable interrupt: %d\n", client->irq);
+		pr_notice("[bq24297_driver_probe] enable interrupt: %d\n", client->irq);
 		/* make sure we clean REG9 before enable fault interrupt */
 		bq24297_read_byte((u8) (bq24297_CON9), &bq24297_reg[9]);
 		if (bq24297_reg[9] != 0)
@@ -1239,7 +1214,6 @@ static const struct i2c_device_id bq24297_i2c_id[] = { {"bq24297", 0}, {} };
 #ifdef CONFIG_OF
 static const struct of_device_id bq24297_id[] = {
 	{.compatible = "ti,bq24297"},
-	{.compatible = "ti,bq24296"},
 	{},
 };
 
@@ -1262,7 +1236,7 @@ static struct i2c_driver bq24297_driver = {
 
 static ssize_t show_bq24297_access(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	pr_debug("[show_bq24297_access] 0x%x\n", g_reg_value_bq24297);
+	pr_info("[show_bq24297_access] 0x%x\n", g_reg_value_bq24297);
 	return sprintf(buf, "0x%x\n", g_reg_value_bq24297);
 }
 
@@ -1282,26 +1256,26 @@ static ssize_t store_bq24297_access(struct device *dev, struct device_attribute 
 			ret = kstrtouint(strsep(&pvalue, " "), 0, &reg_address);
 			if (ret) {
 				pr_err("wrong format!\n");
-				return size;
+				return 0;
 			}
 			ret = kstrtouint(pvalue, 0, &reg_value);
 			if (ret) {
 				pr_err("wrong format!\n");
-				return size;
+				return 0;
 			}
-			pr_debug("[store_bq24297_access] write bq24297 reg 0x%x with value 0x%x !\n",
+			pr_info("[store_bq24297_access] write bq24297 reg 0x%x with value 0x%x !\n",
 				reg_address, reg_value);
 			bq24297_config_interface(reg_address, reg_value, 0xFF, 0x0);
 		} else {
 			ret = kstrtouint(pvalue, 0, &reg_address);
 			if (ret) {
 				pr_err("wrong format!\n");
-				return size;
+				return 0;
 			}
 			bq24297_read_interface(reg_address, &g_reg_value_bq24297, 0xFF, 0x0);
-			pr_debug("[store_bq24297_access] read bq24297 reg 0x%x with value 0x%x !\n",
+			pr_info("[store_bq24297_access] read bq24297 reg 0x%x with value 0x%x !\n",
 				reg_address, g_reg_value_bq24297);
-			pr_debug
+			pr_info
 			    ("[store_bq24297_access] Please use \"cat bq24297_access\" to get value\r\n");
 		}
 	}
@@ -1314,7 +1288,7 @@ static int bq24297_user_space_probe(struct platform_device *dev)
 {
 	int ret_device_file = 0;
 
-	pr_debug("bq24297_user_space_probe!\n");
+	pr_info("bq24297_user_space_probe!\n");
 	ret_device_file = device_create_file(&(dev->dev), &dev_attr_bq24297_access);
 
 	return 0;
@@ -1339,7 +1313,7 @@ static int __init bq24297_init(void)
 	if (i2c_add_driver(&bq24297_driver) != 0)
 		pr_err("[bq24297_init] failed to register bq24297 i2c driver.\n");
 	else
-		pr_debug("[bq24297_init] Success to register bq24297 i2c driver.\n");
+		pr_info("[bq24297_init] Success to register bq24297 i2c driver.\n");
 
 	/* bq24297 user space access interface */
 	ret = platform_device_register(&bq24297_user_space_device);

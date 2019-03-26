@@ -1,3 +1,16 @@
+/*
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
+
 #ifndef _TZ_SECURE_CLOCK_H_INCLUDE
 #define _TZ_SECURE_CLOCK_H_INCLUDE
 #include <linux/module.h>
@@ -24,15 +37,13 @@
 #include <linux/mm.h>
 
 #ifdef CONFIG_MTK_RTC /* secure time depends on rtc */
-#if 1 /* disable playready driver for now */
-#define TZ_SECURETIME_SUPPORT
+/* #define TZ_SECURETIME_SUPPORT */
 /* #define CONFIG_HAS_EARLYSUSPEND_GB */
-#endif
 #endif
 
 
 #include "tz_cross/ta_securetime.h"
-#define GB_TIME_FILE_SAVE_PATH "/data/SecureTD"
+#define GB_TIME_FILE_SAVE_PATH "/data/securetime/SecureTD"
 #define DRM_UINT64 unsigned long long
 
 

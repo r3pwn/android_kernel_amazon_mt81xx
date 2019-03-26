@@ -1,3 +1,16 @@
+/*
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
+
 
 #include <linux/module.h>
 #include <linux/init.h>
@@ -14,7 +27,9 @@
 #include <linux/kthread.h>
 #include <linux/freezer.h>
 #include <linux/platform_device.h>
+#include <linux/dma-mapping.h>
 
+#include <linux/clk.h>
 #include <linux/irqdomain.h>
 #include <linux/of_platform.h>
 #include <linux/of_irq.h>
@@ -24,6 +39,7 @@
 #include "trustzone/kree/system.h"
 #include "trustzone/kree/tz_pm.h"
 #include "trustzone/kree/tz_irq.h"
+#include "trustzone/tz_cross/ta_mem.h"
 #include "kree_int.h"
 #include "tz_counter.h"
 #include "tz_cross/ta_pm.h"
@@ -49,6 +65,67 @@ struct MTIOMMU_PIN_RANGE_T {
 	uint32_t nrPages;
 	uint32_t isPage;
 };
+
+#ifdef CONFIG_OF
+/*Used for clk management*/
+#define CLK_NAME_LEN 16
+struct mtee_clk {
+	struct list_head list;
+	char clk_name[CLK_NAME_LEN];
+	struct clk *clk;
+};
+static LIST_HEAD(mtee_clk_list);
+
+static void mtee_clks_init(struct platform_device *pdev)
+{
+	int clks_num;
+	int idx;
+
+	clks_num = of_property_count_strings(pdev->dev.of_node, "clock-names");
+	for (idx = 0; idx < clks_num; idx++) {
+		const char *clk_name;
+		struct clk *clk;
+		struct mtee_clk *mtee_clk;
+
+		if (of_property_read_string_index(pdev->dev.of_node, "clock-names", idx, &clk_name)) {
+			pr_warn("[%s] get clk_name failed, index:%d\n",
+				MODULE_NAME,
+				idx);
+			continue;
+		}
+		if (strlen(clk_name) > CLK_NAME_LEN-1) {
+			pr_warn("[%s] clk_name %s is longer than %d, trims to %d\n",
+				MODULE_NAME,
+				clk_name, CLK_NAME_LEN-1, CLK_NAME_LEN-1);
+		}
+		clk = devm_clk_get(&pdev->dev, clk_name);
+		if (IS_ERR(clk)) {
+			pr_warn("[%s] get devm_clk_get failed, clk_name:%s\n",
+				MODULE_NAME,
+				clk_name);
+			continue;
+		}
+
+		mtee_clk = kzalloc(sizeof(struct mtee_clk), GFP_KERNEL);
+		strncpy(mtee_clk->clk_name, clk_name, CLK_NAME_LEN-1);
+		mtee_clk->clk = clk;
+
+		list_add(&mtee_clk->list, &mtee_clk_list);
+	}
+}
+
+struct clk *mtee_clk_get(const char *clk_name)
+{
+	struct mtee_clk *cur;
+	struct mtee_clk *tmp;
+
+	list_for_each_entry_safe(cur, tmp, &mtee_clk_list, list) {
+		if (strncmp(cur->clk_name, clk_name, strlen(cur->clk_name)) == 0)
+			return cur->clk;
+	}
+	return NULL;
+}
+#endif
 
 /*****************************************************************************
 * FUNCTION DEFINITION
@@ -779,10 +856,10 @@ static long tz_client_tee_service(struct file *file, unsigned long arg,
 	return cret;
 }
 
-static long tz_client_reg_sharedmem(struct file *file, unsigned long arg)
+static long __tz_reg_sharedmem(struct file *file, unsigned long arg,
+				struct kree_sharedmemory_tag_cmd_param *cparam)
 {
 	unsigned long cret;
-	struct kree_sharedmemory_cmd_param cparam;
 	KREE_SESSION_HANDLE session;
 	uint32_t mem_handle;
 	struct MTIOMMU_PIN_RANGE_T *pin;
@@ -792,15 +869,25 @@ static long tz_client_reg_sharedmem(struct file *file, unsigned long arg)
 	int i;
 	long errcode;
 	unsigned long *pfns;
+	char *tag = NULL;
 
-	cret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
-	if (cret)
-		return -EFAULT;
+	/* handle tag for debugging purpose */
+	if (cparam->tag != 0 && cparam->tag_size != 0) {
+		tag = kmalloc(cparam->tag_size+1, GFP_KERNEL);
+		if (tag == NULL)
+			return -ENOMEM;
+		cret = copy_from_user(tag, (void *)(unsigned long)cparam->tag, cparam->tag_size);
+		if (cret)
+			return -EFAULT;
+		tag[cparam->tag_size] = '\0';
+	}
 
 	/* session handle */
-	session = tz_client_get_session(file, cparam.session);
-	if (session <= 0)
+	session = tz_client_get_session(file, cparam->session);
+	if (session <= 0) {
+		kfree(tag);
 		return -EINVAL;
+	}
 
 	/* map pages
 	 */
@@ -812,8 +899,8 @@ static long tz_client_reg_sharedmem(struct file *file, unsigned long arg)
 		errcode = -ENOMEM;
 		goto client_regshm_mapfail;
 	}
-	cret = _map_user_pages(pin, (unsigned long)cparam.buffer,
-				cparam.size, cparam.control);
+	cret = _map_user_pages(pin, (unsigned long)cparam->buffer,
+				cparam->size, cparam->control);
 	if (cret != 0) {
 		pr_warn("tz_client_reg_sharedmem fail: map user pages = 0x%x\n",
 			(uint32_t) cret);
@@ -846,15 +933,17 @@ static long tz_client_reg_sharedmem(struct file *file, unsigned long arg)
 	/* register it ...
 	 */
 	ret = kree_register_sharedmem(session, &mem_handle, pin->start,
-					pin->size, (void *)map_p);
+					pin->size, (void *)map_p, tag);
 	if (ret != TZ_RESULT_SUCCESS) {
 		pr_warn("tz_client_reg_sharedmem fail: register shm 0x%x\n",
 			ret);
 		kfree(map_p);
+		kfree(tag);
 		errcode = -EFAULT;
 		goto client_regshm_free;
 	}
 	kfree(map_p);
+	kfree(tag);
 
 	/* register to fd
 	 */
@@ -868,9 +957,9 @@ static long tz_client_reg_sharedmem(struct file *file, unsigned long arg)
 		goto client_regshm_free_1;
 	}
 
-	cparam.mem_handle = mem_handle;
-	cparam.ret = ret;	/* TEE service call return */
-	cret = copy_to_user((void *)arg, &cparam, sizeof(cparam));
+	cparam->mem_handle = mem_handle;
+	cparam->ret = ret;	/* TEE service call return */
+	cret = copy_to_user((void *)arg, cparam, sizeof(struct kree_sharedmemory_cmd_param));
 	if (cret)
 		return -EFAULT;
 
@@ -881,8 +970,8 @@ client_regshm_free_1:
 client_regshm_free:
 	_unmap_user_pages(pin);
 	kfree(pin);
-	cparam.ret = ret;	/* TEE service call return */
-	cret = copy_to_user((void *)arg, &cparam, sizeof(cparam));
+	cparam->ret = ret;	/* TEE service call return */
+	cret = copy_to_user((void *)arg, cparam, sizeof(struct kree_sharedmemory_cmd_param));
 	pr_warn("tz_client_reg_sharedmem fail: shm reg\n");
 	return errcode;
 
@@ -891,8 +980,36 @@ client_regshm_mapfail_2:
 client_regshm_mapfail_1:
 	kfree(pin);
 client_regshm_mapfail:
+	kfree(tag);
 	pr_warn("tz_client_reg_sharedmem fail: map memory\n");
 	return errcode;
+}
+
+static long tz_client_reg_sharedmem_with_tag(struct file *file, unsigned long arg)
+{
+	unsigned long cret;
+	struct kree_sharedmemory_tag_cmd_param cparam;
+
+	cret = copy_from_user(&cparam, (void *)arg, sizeof(cparam));
+	if (cret)
+		return -EFAULT;
+
+	return __tz_reg_sharedmem(file, arg, &cparam);
+}
+
+static long tz_client_reg_sharedmem(struct file *file, unsigned long arg)
+{
+	unsigned long cret;
+	struct kree_sharedmemory_tag_cmd_param cparam;
+
+	cret = copy_from_user(&cparam, (void *)arg, sizeof(struct kree_sharedmemory_cmd_param));
+	if (cret)
+		return -EFAULT;
+
+	cparam.tag = 0;
+	cparam.tag_size = 0;
+
+	return __tz_reg_sharedmem(file, arg, &cparam);
 }
 
 static long tz_client_unreg_sharedmem(struct file *file, unsigned long arg)
@@ -975,6 +1092,9 @@ static long do_tz_client_ioctl(struct file *file, unsigned int cmd,
 
 	case MTEE_CMD_SHM_REG:
 		return tz_client_reg_sharedmem(file, arg);
+
+	case MTEE_CMD_SHM_REG_WITH_TAG:
+		return tz_client_reg_sharedmem_with_tag(file, arg);
 
 	case MTEE_CMD_SHM_UNREG:
 		return tz_client_unreg_sharedmem(file, arg);
@@ -1105,7 +1225,9 @@ static int mtee_probe(struct platform_device *pdev)
 			pr_warn("can't find interrupt-parent device node from mtee\n");
 	} else
 		pr_warn("No mtee device node\n");
-#endif
+
+	mtee_clks_init(pdev);
+#endif /* CONFIG_OF */
 
 	tz_client_dev = MKDEV(MAJOR_DEV_NUM, 0);
 
@@ -1192,7 +1314,6 @@ static struct platform_driver tz_driver = {
 	.shutdown   = st_shutdown,
 #endif
 };
-
 
 /******************************************************************************
  * register_tz_driver

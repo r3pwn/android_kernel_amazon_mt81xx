@@ -2912,13 +2912,12 @@ static int __dev_queue_xmit(struct sk_buff *skb, void *accel_priv)
 	struct netdev_queue *txq;
 	struct Qdisc *q;
 	int rc = -ENOMEM;
-#ifdef UDP_SKT_WIFI
-	int need_wfd = (sysctl_met_is_enable == 1) && (sysctl_udp_met_port > 0);
-#endif
 
 	skb_reset_mac_header(skb);
 
 #ifdef UDP_SKT_WIFI
+	int need_wfd = (sysctl_met_is_enable == 1) && (sysctl_udp_met_port > 0);
+
 	if (unlikely(need_wfd && (ip_hdr(skb)->protocol == IPPROTO_UDP) && skb->sk)) {
 		if (sysctl_udp_met_port == ntohs((inet_sk(skb->sk))->inet_sport)) {
 			struct udphdr *udp_iphdr = udp_hdr(skb);
@@ -4042,6 +4041,7 @@ static enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff 
 		NAPI_GRO_CB(skb)->flush = 0;
 		NAPI_GRO_CB(skb)->free = 0;
 		NAPI_GRO_CB(skb)->udp_mark = 0;
+		NAPI_GRO_CB(skb)->recursion_counter = 0;
 
 		/* Setup for GRO checksum validation */
 		switch (skb->ip_summed) {

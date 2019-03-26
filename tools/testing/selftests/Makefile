@@ -4,7 +4,6 @@ TARGETS += efivarfs
 TARGETS += kcmp
 TARGETS += memfd
 TARGETS += memory-hotplug
-TARGETS += mqueue
 TARGETS += mount
 TARGETS += net
 TARGETS += ptrace

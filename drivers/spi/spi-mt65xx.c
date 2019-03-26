@@ -79,25 +79,32 @@ struct mtk_spi_compatible {
 	bool need_pad_sel;
 	/* Must explicitly send dummy Tx bytes to do Rx only transfer */
 	bool must_tx;
+	bool need_dcm_sel;
 };
 
 struct mtk_spi {
 	void __iomem *base;
 	u32 state;
 	u32 pad_sel;
-	struct clk *parent_clk, *sel_clk, *spi_clk;
+	struct clk *parent_clk, *sel_clk, *spi_clk, *dcm_sel_clk;
 	struct spi_transfer *cur_transfer;
 	u32 xfer_len;
 	struct scatterlist *tx_sgl, *rx_sgl;
 	u32 tx_sgl_len, rx_sgl_len;
 	const struct mtk_spi_compatible *dev_comp;
+#ifdef CONFIG_MT_SND_SOC_8163_AMZN
+	u32 spi_clk_hz;
+#endif
 };
 
-static const struct mtk_spi_compatible mt2701_compat;
 static const struct mtk_spi_compatible mt6589_compat;
-static const struct mtk_spi_compatible mt8127_compat;
 static const struct mtk_spi_compatible mt8135_compat;
-static const struct mtk_spi_compatible mt8163_compat;
+static const struct mtk_spi_compatible mt8163_compat = {
+	.need_dcm_sel = true,
+#ifndef CONFIG_MT_SND_SOC_8163_AMZN
+	.must_tx = true,
+#endif
+};
 static const struct mtk_spi_compatible mt8173_compat = {
 	.need_pad_sel = true,
 	.must_tx = true,
@@ -113,9 +120,7 @@ static const struct mtk_chip_config mtk_default_chip_info = {
 };
 
 static const struct of_device_id mtk_spi_of_match[] = {
-	{ .compatible = "mediatek,mt2701-spi", .data = (void *)&mt2701_compat },
 	{ .compatible = "mediatek,mt6589-spi", .data = (void *)&mt6589_compat },
-	{ .compatible = "mediatek,mt8127-spi", .data = (void *)&mt8127_compat },
 	{ .compatible = "mediatek,mt8135-spi", .data = (void *)&mt8135_compat },
 	{ .compatible = "mediatek,mt8163-spi", .data = (void *)&mt8163_compat },
 	{ .compatible = "mediatek,mt8173-spi", .data = (void *)&mt8173_compat },
@@ -179,6 +184,24 @@ static void mtk_spi_config(struct mtk_spi *mdata,
 		writel(mdata->pad_sel, mdata->base + SPI_PAD_SEL_REG);
 }
 
+#ifdef CONFIG_MT_SND_SOC_8163_AMZN
+static int mtk_spi_prepare_hardware(struct spi_master *master)
+{
+	struct spi_transfer *trans;
+	struct mtk_spi *mdata = spi_master_get_devdata(master);
+	struct spi_message *msg = master->cur_msg;
+
+	trans = list_first_entry(&msg->transfers, struct spi_transfer,
+				 transfer_list);
+	if (!trans->cs_change) {
+		mdata->state = MTK_SPI_IDLE;
+		mtk_spi_reset(mdata);
+	}
+
+	return 0;
+}
+#endif
+
 static int mtk_spi_prepare_message(struct spi_master *master,
 				   struct spi_message *msg)
 {
@@ -218,6 +241,13 @@ static void mtk_spi_set_cs(struct spi_device *spi, bool enable)
 	struct mtk_spi *mdata = spi_master_get_devdata(spi->master);
 
 	reg_val = readl(mdata->base + SPI_CMD_REG);
+#ifdef CONFIG_MT_SND_SOC_8163_AMZN
+	if (!enable)
+		reg_val |= SPI_CMD_PAUSE_EN;
+	else
+		reg_val &= ~SPI_CMD_PAUSE_EN;
+	writel(reg_val, mdata->base + SPI_CMD_REG);
+#else
 	if (!enable) {
 		reg_val |= SPI_CMD_PAUSE_EN;
 		writel(reg_val, mdata->base + SPI_CMD_REG);
@@ -227,6 +257,7 @@ static void mtk_spi_set_cs(struct spi_device *spi, bool enable)
 		mdata->state = MTK_SPI_IDLE;
 		mtk_spi_reset(mdata);
 	}
+#endif
 }
 
 static void mtk_spi_prepare_transfer(struct spi_master *master,
@@ -235,7 +266,12 @@ static void mtk_spi_prepare_transfer(struct spi_master *master,
 	u32 spi_clk_hz, div, sck_time, cs_time, reg_val = 0;
 	struct mtk_spi *mdata = spi_master_get_devdata(master);
 
+#ifdef CONFIG_MT_SND_SOC_8163_AMZN
+	/* clk_get_rate() waits for mutex can be 30ms long found in ftraces */
+	spi_clk_hz = mdata->spi_clk_hz;
+#else
 	spi_clk_hz = clk_get_rate(mdata->spi_clk);
+#endif
 	if (xfer->speed_hz < spi_clk_hz / 2)
 		div = DIV_ROUND_UP(spi_clk_hz, xfer->speed_hz);
 	else
@@ -497,12 +533,18 @@ static int mtk_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to alloc spi master\n");
 		return -ENOMEM;
 	}
-
+#ifdef CONFIG_MT_SND_SOC_8163_AMZN
+	master->auto_runtime_pm = false;
+#else
 	master->auto_runtime_pm = true;
+#endif
 	master->dev.of_node = pdev->dev.of_node;
 	master->mode_bits = SPI_CPOL | SPI_CPHA;
 
 	master->set_cs = mtk_spi_set_cs;
+#ifdef CONFIG_MT_SND_SOC_8163_AMZN
+	master->prepare_transfer_hardware = mtk_spi_prepare_hardware;
+#endif
 	master->prepare_message = mtk_spi_prepare_message;
 	master->transfer_one = mtk_spi_transfer_one;
 	master->can_dma = mtk_spi_can_dma;
@@ -590,6 +632,21 @@ static int mtk_spi_probe(struct platform_device *pdev)
 		goto err_put_master;
 	}
 
+	if (mdata->dev_comp->need_dcm_sel) {
+		mdata->dcm_sel_clk = devm_clk_get(&pdev->dev, "dcm-sel-clk");
+		if (IS_ERR(mdata->dcm_sel_clk)) {
+			ret = PTR_ERR(mdata->dcm_sel_clk);
+			dev_err(&pdev->dev, "failed to get spi-sel: %d\n", ret);
+			goto err_put_master;
+		}
+
+		ret = clk_set_parent(mdata->dcm_sel_clk, mdata->sel_clk);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed to clk_set_parent (%d)\n", ret);
+			goto err_disable_clk;
+		}
+	}
+
 	ret = clk_prepare_enable(mdata->spi_clk);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to enable spi_clk (%d)\n", ret);
@@ -602,10 +659,15 @@ static int mtk_spi_probe(struct platform_device *pdev)
 		goto err_disable_clk;
 	}
 
+#ifdef CONFIG_MT_SND_SOC_8163_AMZN
+	/* PM is put off. Clock rate is obtained once since this function can
+	 * wait for mutex for as long as 10-30ms proven from ftraces */
+	mdata->spi_clk_hz = clk_get_rate(mdata->spi_clk);
+#else
 	clk_disable_unprepare(mdata->spi_clk);
 
 	pm_runtime_enable(&pdev->dev);
-
+#endif
 	ret = devm_spi_register_master(&pdev->dev, master);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register master (%d)\n", ret);
@@ -710,7 +772,9 @@ static const struct dev_pm_ops mtk_spi_pm = {
 static struct platform_driver mtk_spi_driver = {
 	.driver = {
 		.name = "mtk-spi",
+#ifndef CONFIG_MT_SND_SOC_8163_AMZN
 		.pm	= &mtk_spi_pm,
+#endif
 		.of_match_table = mtk_spi_of_match,
 	},
 	.probe = mtk_spi_probe,

@@ -633,13 +633,11 @@ out:
 	spin_unlock(&files->file_lock);
 #ifdef FD_OVER_CHECK
 	if (error == -EMFILE && !dump_current_open_files) {
-		/*add Backbone into FD white list for skype*/
-		/*if (strcmp(current->comm, "Backbone") != 0) {*/
-		dump_current_open_files = 0x1;
-		pr_err("[FDLEAK][%d:%s]fd over RLIMIT_NOFILE:%ld\n",
-			current->pid, current->comm, rlimit(RLIMIT_NOFILE));
-		fd_show_open_files(current->pid, files, fdt);
-		/*}*/
+		if (strcmp(current->comm, "Backbone") != 0) { /*add Backbone into FD white list for skype*/
+			dump_current_open_files = 0x1;
+			pr_err("[FDLEAK](PID:%d)fd over RLIMIT_NOFILE:%ld\n", current->pid, rlimit(RLIMIT_NOFILE));
+			fd_show_open_files(current->pid, files, fdt);
+		}
 	}
 #endif
 	return error;

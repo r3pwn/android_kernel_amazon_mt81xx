@@ -105,6 +105,7 @@ typedef struct __VENC_HYB_ENCSETTING {
 	/* hardware dependent function settings */
 	VAL_BOOL_T      fgUseMCI;
 	VAL_UINT32_T    u4VEncThreadNum;
+	VAL_UINT32_T    u4LivePhoto;
 } VENC_HYBRID_ENCSETTING;
 
 

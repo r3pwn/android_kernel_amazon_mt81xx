@@ -1,7 +1,6 @@
 #include <mach/mt_typedefs.h>
 #include <mach/sync_write.h>
 #include <linux/kernel.h>
-#include <linux/xlog.h>
 
 #define JPEG_MSG pr_debug
 #define JPEG_WRN pr_debug

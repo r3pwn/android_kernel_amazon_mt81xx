@@ -62,6 +62,9 @@ struct mount {
 	int mnt_expiry_mark;		/* true if marked for expiry */
 	struct hlist_head mnt_pins;
 	struct path mnt_ex_mountpoint;
+#ifdef CONFIG_UMOUNT_DEBUG
+	struct list_head mnt_user_list;
+#endif
 };
 
 #define MNT_NS_INTERNAL ERR_PTR(-EINVAL) /* distinct from any mnt_namespace */

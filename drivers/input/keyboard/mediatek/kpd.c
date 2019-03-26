@@ -21,8 +21,14 @@
 #include <linux/of_irq.h>
 #include <linux/clk.h>
 
+#ifdef CONFIG_AMZ_PRIV
+#include <amz_priv.h>
+#endif
+
 #define KPD_NAME	"mtk-kpd"
+#ifndef CONFIG_KPD_VOLUME_KEY_SWAP
 #define MTK_KP_WAKESOURCE	/* this is for auto set wake up source */
+#endif
 
 void __iomem *kp_base;
 static unsigned int kp_irqnr;
@@ -36,9 +42,17 @@ struct wake_lock kpd_suspend_lock;	/* For suspend usage */
 /*for kpd_memory_setting() function*/
 static u16 kpd_keymap[KPD_NUM_KEYS];
 static u16 kpd_keymap_state[KPD_NUM_MEMS];
-#ifdef CONFIG_ARCH_MT8173
 static struct wake_lock pwrkey_lock;
+#ifdef CONFIG_KPD_VOLUME_KEY_SWAP
+static bool kpd_swap_vol_key = false;
+static u32 kpd_swap_up_code, kpd_swap_down_code;
 #endif
+
+#ifdef CONFIG_AMZ_PRIV
+extern struct priv_work_data *pw_data;
+static struct workqueue_struct *priv_workq;
+#endif
+
 /***********************************/
 
 /* for slide QWERTY */
@@ -92,6 +106,101 @@ static struct platform_driver kpd_pdrv = {
 		   .of_match_table = kpd_of_match,
 		   },
 };
+
+#ifdef CONFIG_AMZ_PRIV
+struct workqueue_struct *amz_priv_get_workq(void)
+{
+       return priv_workq;
+}
+
+void handle_privacy_button_pressed(unsigned long pressed)
+{
+	unsigned int delay;
+	int event_handled = 0;
+
+	if (pw_data && priv_workq && !pressed && pw_data->cur_priv) {
+		/* exit priv mode right away */
+		pr_debug("%s:%u: exit priv mode now\n", __func__, __LINE__);
+		if (amz_priv_trigger(0)) {
+			pr_err("%s:%u exit priv failed\n", __func__, __LINE__);
+		} else {
+			pr_debug("%s:%d:\n", __func__, __LINE__);
+			event_handled = 1;
+		}
+	}
+
+	/*
+	* This is the case when a quick button press
+	* in succession triggers a work item resulting
+	* in queuing another work item while current timer
+	* is ticking.
+	*
+	* !cur_priv && cur_timer_on => two events happened in
+	* very quick succession. If we were not in privacy prior
+	* to the two quick events then we should not queue any
+	* events for later either. To achieve this we will indicate
+	* this event was handled already. This should be done only when
+	* the button has been released (since priv is triggered on release)
+	*/
+	if (pw_data && !pw_data->cur_priv && pw_data->cur_timer_on
+	    && !pressed) {
+		pr_debug("%s: quick evts, flushing\n", __func__);
+		FLUSH_PRIV_WORKQ();
+		event_handled = 1;
+	}
+
+	if ((pw_data && priv_workq && !pressed) && (!pw_data->cur_priv)
+		       && !event_handled) {
+		pr_debug("%s:%d: queuing work\n", __func__, __LINE__);
+		/*
+		 * queue work to start priv mode in max time
+		 */
+		delay = 3 * HZ / 10;
+		queue_delayed_work(priv_workq, &pw_data->dwork, delay);
+		amz_priv_timer_sysfs(1);
+	}
+}
+#endif
+
+#ifdef CONFIG_KPD_VOLUME_KEY_SWAP
+bool get_kpd_swap_vol_key(void)
+{
+	return kpd_swap_vol_key;
+}
+EXPORT_SYMBOL(get_kpd_swap_vol_key);
+
+void set_kpd_swap_vol_key(bool flag)
+{
+	kpd_swap_vol_key = flag;
+}
+EXPORT_SYMBOL(set_kpd_swap_vol_key);
+
+u32 kpd_get_linux_key_code(u32 keycode, bool pressed)
+{
+	u32 linux_keycode = keycode;
+	u32 kc = keycode;
+	if (pressed) {
+		if (kpd_swap_vol_key) {
+			if (linux_keycode == KEY_VOLUMEDOWN)
+				linux_keycode = KEY_VOLUMEUP;
+			else if (linux_keycode == KEY_VOLUMEUP)
+				linux_keycode = KEY_VOLUMEDOWN;
+		}
+		/* Save the pressed volume keycode */
+		if (kc == KEY_VOLUMEUP)
+			kpd_swap_up_code = linux_keycode;
+		else if (kc == KEY_VOLUMEDOWN)
+			kpd_swap_down_code = linux_keycode;
+	} else {
+		/* Unpressed keycode should match the pressed keycode */
+		if (linux_keycode == KEY_VOLUMEUP && kpd_swap_up_code != 0)
+			linux_keycode = kpd_swap_up_code;
+		else if (linux_keycode == KEY_VOLUMEDOWN && kpd_swap_down_code != 0)
+			linux_keycode = kpd_swap_down_code;
+	}
+	return linux_keycode;
+}
+#endif
 
 /********************************************************************/
 static void kpd_memory_setting(void)
@@ -191,12 +300,19 @@ static const u16 kpd_auto_keymap[] = {
 	KEY_FOCUS, KEY_CAMERA,
 };
 #endif
+#if defined(CONFIG_INPUT_KEYPANIC)
+#define AEE_MANUAL_DUMP_ENABLE 0
+#else
+#define AEE_MANUAL_DUMP_ENABLE 1
+#endif
+#if AEE_MANUAL_DUMP_ENABLE
 /* for AEE manual dump */
 #define AEE_VOLUMEUP_BIT	0
 #define AEE_VOLUMEDOWN_BIT	1
 #define AEE_DELAY_TIME		15
 /* enable volup + voldown was pressed 5~15 s Trigger aee manual dump */
 #define AEE_ENABLE_5_15		1
+
 static struct hrtimer aee_timer;
 static unsigned long aee_pressed_keys;
 static bool aee_timer_started;
@@ -289,6 +405,10 @@ static enum hrtimer_restart aee_timer_func(struct hrtimer *timer)
 	/* aee_kernel_reminding("manual dump ", "Triggered by press KEY_VOLUMEUP+KEY_VOLUMEDOWN"); */
 	/*ZH CHEN*/
 	/*aee_trigger_kdb();*/
+
+#ifdef CONFIG_MTK_KEYRESET
+	panic("Keyreset was triggered");
+#endif
 	return HRTIMER_NORESTART;
 }
 
@@ -298,10 +418,14 @@ static enum hrtimer_restart aee_timer_5s_func(struct hrtimer *timer)
 
 	/* kpd_info("kpd: vol up+vol down AEE manual dump timer 5s !\n"); */
 	flags_5s = true;
+
+#ifdef CONFIG_MTK_KEYRESET
+	panic("Keyreset was triggered");
+#endif
 	return HRTIMER_NORESTART;
 }
 #endif
-
+#endif /* #if AEE_MANUAL_DUMP_ENABLE */
 /************************************************************************/
 #if KPD_HAS_SLIDE_QWERTY
 static void kpd_slide_handler(unsigned long data)
@@ -353,14 +477,21 @@ void kpd_pwrkey_pmic_handler(unsigned long pressed)
 		kpd_print("KPD input device not ready\n");
 		return;
 	}
+#ifdef CONFIG_AMZ_PRIV
+       handle_privacy_button_pressed(pressed);
+#endif
 	kpd_pmic_pwrkey_hal(pressed);
-#ifdef CONFIG_ARCH_MT8173
+
 	if (pressed) /* keep the lock while the button in held pushed */
 		wake_lock(&pwrkey_lock);
 	else /* keep the lock for extra 500ms after the button is released */
 		wake_lock_timeout(&pwrkey_lock, HZ/2);
-#endif
 }
+#endif
+
+
+#ifdef CONFIG_MTK_KEYRESET
+#define KPD_PMIC_RSTKEY_MAP KEY_VOLUMEDOWN
 #endif
 
 void kpd_pmic_rstkey_handler(unsigned long pressed)
@@ -372,7 +503,9 @@ void kpd_pmic_rstkey_handler(unsigned long pressed)
 	}
 	kpd_pmic_rstkey_hal(pressed);
 #ifdef KPD_PMIC_RSTKEY_MAP
+#if AEE_MANUAL_DUMP_ENABLE
 	kpd_aee_handler(KPD_PMIC_RSTKEY_MAP, pressed);
+#endif
 #endif
 }
 
@@ -408,19 +541,27 @@ static void kpd_keymap_handler(unsigned long data)
 			BUG_ON(hw_keycode >= KPD_NUM_KEYS);
 			linux_keycode = kpd_keymap[hw_keycode];
 			if (unlikely(linux_keycode == 0)) {
-				kpd_print("Linux keycode = 0\n");
+				if (kpd_show_hw_keycode)
+					kpd_print("Linux keycode = 0\n");
 				continue;
 			}
+#ifdef CONFIG_KPD_VOLUME_KEY_SWAP
+			linux_keycode = kpd_get_linux_key_code(linux_keycode, pressed);
+#endif
+#if AEE_MANUAL_DUMP_ENABLE
 			kpd_aee_handler(linux_keycode, pressed);
-
+#endif
 			input_report_key(kpd_input_dev, linux_keycode, pressed);
 			input_sync(kpd_input_dev);
-			kpd_print("report Linux keycode = %u\n", linux_keycode);
+			if (kpd_show_hw_keycode)
+				kpd_print("report Linux keycode = %u\n",
+					linux_keycode);
 		}
 	}
 
 	memcpy(kpd_keymap_state, new_state, sizeof(new_state));
-	kpd_print("save new keymap state\n");
+	if (kpd_show_hw_keycode)
+		kpd_print("save new keymap state\n");
 	enable_irq(kp_irqnr);
 }
 
@@ -768,6 +909,9 @@ void kpd_get_dts_info(struct device_node *node)
 	of_property_read_u32(node, "mediatek,kpd-hw-map-num", &kpd_dts_data.kpd_hw_map_num);
 	of_property_read_u32_array(node, "mediatek,kpd-hw-init-map", kpd_dts_data.kpd_hw_init_map,
 		kpd_dts_data.kpd_hw_map_num);
+	/* If property is not found set to the default value of 1 */
+	if (of_property_read_u32(node, "mediatek,kpd-show-hw-keycode", &kpd_show_hw_keycode))
+		kpd_show_hw_keycode = 1;
 
 	kpd_print("key-debounce = %d, sw-pwrkey = %d, hw-pwrkey = %d, hw-rstkey = %d, sw-rstkey = %d\n",
 		  kpd_dts_data.kpd_key_debounce, kpd_dts_data.kpd_sw_pwrkey, kpd_dts_data.kpd_hw_pwrkey,
@@ -781,6 +925,23 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 	struct clk *kpd_clk = NULL;
 
 	kpd_info("Keypad probe start!!!\n");
+#ifdef CONFIG_AMZ_PRIV
+	amz_priv_kickoff(&pdev->dev);
+	if (pw_data) {
+		priv_workq = alloc_workqueue("priv_workq", WQ_UNBOUND, 1);
+		if (priv_workq) {
+			INIT_DELAYED_WORK(&pw_data->dwork,
+					  start_privacy_timer_func);
+			pr_debug("%s:%u created priv_workq..\n",
+				 __func__, __LINE__);
+		} else {
+			pr_err("%s:%u create priv_workq failed continuing..\n",
+			       __func__, __LINE__);
+		}
+	} else {
+		pr_warn("%s:%u: pw_data is NULL\n", __func__, __LINE__);
+	}
+#endif
 
 	/*kpd-clk should be control by kpd driver, not depend on default clock state*/
 	kpd_clk = devm_clk_get(&pdev->dev, "kpd-clk");
@@ -819,9 +980,7 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 
 	kpd_get_dts_info(pdev->dev.of_node);
 
-#ifdef CONFIG_ARCH_MT8173
 	wake_lock_init(&pwrkey_lock, WAKE_LOCK_SUSPEND, "PWRKEY");
-#endif
 
 	/* fulfill custom settings */
 	kpd_memory_setting();
@@ -891,12 +1050,15 @@ static int kpd_pdrv_probe(struct platform_device *pdev)
 #ifndef KPD_EARLY_PORTING	/*add for avoid early porting build err the macro is defined in custom file */
 	long_press_reboot_function_setting();	/* /API 4 for kpd long press reboot function setting */
 #endif
+
+#if AEE_MANUAL_DUMP_ENABLE
 	hrtimer_init(&aee_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	aee_timer.function = aee_timer_func;
 
 #if AEE_ENABLE_5_15
 	hrtimer_init(&aee_timer_5s, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	aee_timer_5s.function = aee_timer_5s_func;
+#endif
 #endif
 	err = kpd_create_attr(&kpd_pdrv.driver);
 	if (err) {

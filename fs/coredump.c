@@ -497,6 +497,10 @@ static int umh_pipe_setup(struct subprocess_info *info, struct cred *new)
 	return err;
 }
 
+#if CONFIG_SECURITY_SELINUX_KERN_PERMISSIVE
+extern int selinux_set_enforce(bool enforce);
+#endif
+
 void do_coredump(const siginfo_t *siginfo)
 {
 	struct core_state core_state;
@@ -511,6 +515,8 @@ void do_coredump(const siginfo_t *siginfo)
 	struct files_struct *displaced;
 	bool need_nonrelative = false;
 	bool core_dumped = false;
+	int selinux_enforced = 0;
+
 	static atomic_t core_dump_count = ATOMIC_INIT(0);
 	struct coredump_params cprm = {
 		.siginfo = siginfo,
@@ -634,6 +640,9 @@ void do_coredump(const siginfo_t *siginfo)
 			goto fail_unlock;
 		}
 
+	#ifdef CONFIG_SECURITY_SELINUX_KERN_PERMISSIVE
+		selinux_enforced = selinux_set_enforce(false);
+	#endif
 		cprm.file = filp_open(cn.corename,
 				 O_CREAT | 2 | O_NOFOLLOW | O_LARGEFILE | flag,
 				 0600);
@@ -679,6 +688,11 @@ void do_coredump(const siginfo_t *siginfo)
 close_fail:
 	if (cprm.file)
 		filp_close(cprm.file, NULL);
+#ifdef CONFIG_SECURITY_SELINUX_KERN_PERMISSIVE
+	if (selinux_enforced) {
+		selinux_set_enforce(true);
+	}
+#endif
 fail_dropcount:
 	if (ispipe)
 		atomic_dec(&core_dump_count);

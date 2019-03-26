@@ -12,7 +12,6 @@ CFLAGS_REMOVE_insn.o = -pg
 CFLAGS_REMOVE_return_address.o = -pg
 
 ccflags-y += -Idrivers/misc/mediatek/mtprof/
-ccflags-y += -Idrivers/misc/mediatek/include/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)/
 
 # Object file lists.

@@ -17,16 +17,8 @@
 #include <cust_alsps.h>
 #include <cust_acc.h>
 #include <cust_gyro.h>
-#ifdef CONFIG_CUSTOM_KERNEL_MAGNETOMETER
 #include <cust_mag.h>
-#endif
 
-#ifdef CONFIG_CUSTOM_KERNEL_BAROMETER
-#include <cust_baro.h>
-#endif
-#ifdef CONFIG_CUSTOM_KERNEL_HUMIDITY
-#include <cust_hmdy.h>
-#endif
 
 #define SENSOR_TAG				  "[Sensor dts] "
 #define SENSOR_ERR(fmt, args...)	pr_err(SENSOR_TAG fmt, ##args)
@@ -182,7 +174,6 @@ struct alsps_hw *get_alsps_dts_func(const char *name, struct alsps_hw *hw)
 	return hw;
 }
 
-#ifdef CONFIG_CUSTOM_KERNEL_MAGNETOMETER
 struct mag_hw *get_mag_dts_func(const char *name, struct mag_hw *hw)
 {
 	int i, ret;
@@ -236,7 +227,6 @@ struct mag_hw *get_mag_dts_func(const char *name, struct mag_hw *hw)
 	}
 	return hw;
 }
-#endif
 
 struct gyro_hw *get_gyro_dts_func(const char *name, struct gyro_hw *hw)
 {
@@ -296,126 +286,3 @@ struct gyro_hw *get_gyro_dts_func(const char *name, struct gyro_hw *hw)
 	}
 	return hw;
 }
-
-#ifdef CONFIG_CUSTOM_KERNEL_BAROMETER
-struct baro_hw *get_baro_dts_func(const char *name, struct baro_hw *hw)
-{
-	int i, ret;
-	u32 i2c_num[] = {0};
-	u32 i2c_addr[C_CUST_I2C_ADDR_NUM] = {0};
-	u32 direction[] = {0};
-	u32 power_id[] = {0};
-	u32 power_vol[] = {0};
-	u32 firlen[] = {0};
-	u32 is_batch_supported[] = {0};
-	struct device_node *node = NULL;
-
-	SENSOR_LOG("Device Tree get gyro info!\n");
-	if (name == NULL)
-		return NULL;
-
-	node = of_find_compatible_node(NULL, NULL, name);
-	if (node) {
-		ret = of_property_read_u32_array(node , "i2c_num", i2c_num, ARRAY_SIZE(i2c_num));
-		if (ret == 0)
-			hw->i2c_num	=	i2c_num[0];
-
-		ret = of_property_read_u32_array(node , "i2c_addr", i2c_addr, ARRAY_SIZE(i2c_addr));
-		if (ret == 0) {
-			for (i = 0; i < GYRO_CUST_I2C_ADDR_NUM; i++)
-				hw->i2c_addr[i] = i2c_addr[i];
-		}
-
-		ret = of_property_read_u32_array(node , "direction", direction, ARRAY_SIZE(direction));
-		if (ret == 0)
-			hw->direction = direction[0];
-
-		ret = of_property_read_u32_array(node , "power_id", power_id, ARRAY_SIZE(power_id));
-		if (ret == 0) {
-			if (power_id[0] == 0xffff)
-				hw->power_id = -1;
-			else
-				hw->power_id	=	power_id[0];
-		}
-
-		ret = of_property_read_u32_array(node , "power_vol", power_vol, ARRAY_SIZE(power_vol));
-		if (ret == 0)
-			hw->power_vol	=	power_vol[0];
-
-		ret = of_property_read_u32_array(node , "firlen", firlen, ARRAY_SIZE(firlen));
-		if (ret == 0)
-			hw->firlen	=	firlen[0];
-
-		ret = of_property_read_u32_array(node , "is_batch_supported", is_batch_supported,
-			ARRAY_SIZE(is_batch_supported));
-		if (ret == 0)
-			hw->is_batch_supported		 = is_batch_supported[0];
-	} else {
-		SENSOR_ERR("Device Tree: can not find gyro node!. Go to use old cust info\n");
-		return NULL;
-	}
-	return hw;
-}
-#endif
-
-#ifdef CONFIG_CUSTOM_KERNEL_HUMIDITY
-struct hmdy_hw *get_hmdy_dts_func(const char *name, struct hmdy_hw *hw)
-{
-	int i, ret;
-	u32 i2c_num[] = {0};
-	u32 i2c_addr[C_CUST_I2C_ADDR_NUM] = {0};
-	u32 direction[] = {0};
-	u32 power_id[] = {0};
-	u32 power_vol[] = {0};
-	u32 firlen[] = {0};
-	u32 is_batch_supported[] = {0};
-	struct device_node *node = NULL;
-
-	SENSOR_LOG("Device Tree get gyro info!\n");
-	if (name == NULL)
-		return NULL;
-
-	node = of_find_compatible_node(NULL, NULL, name);
-	if (node) {
-		ret = of_property_read_u32_array(node , "i2c_num", i2c_num, ARRAY_SIZE(i2c_num));
-		if (ret == 0)
-			hw->i2c_num	=	i2c_num[0];
-
-		ret = of_property_read_u32_array(node , "i2c_addr", i2c_addr, ARRAY_SIZE(i2c_addr));
-		if (ret == 0) {
-			for (i = 0; i < GYRO_CUST_I2C_ADDR_NUM; i++)
-				hw->i2c_addr[i] = i2c_addr[i];
-		}
-
-		ret = of_property_read_u32_array(node , "direction", direction, ARRAY_SIZE(direction));
-		if (ret == 0)
-			hw->direction = direction[0];
-
-		ret = of_property_read_u32_array(node , "power_id", power_id, ARRAY_SIZE(power_id));
-		if (ret == 0) {
-			if (power_id[0] == 0xffff)
-				hw->power_id = -1;
-			else
-				hw->power_id	=	power_id[0];
-		}
-
-		ret = of_property_read_u32_array(node , "power_vol", power_vol, ARRAY_SIZE(power_vol));
-		if (ret == 0)
-			hw->power_vol	=	power_vol[0];
-
-		ret = of_property_read_u32_array(node , "firlen", firlen, ARRAY_SIZE(firlen));
-		if (ret == 0)
-			hw->firlen	=	firlen[0];
-
-		ret = of_property_read_u32_array(node , "is_batch_supported", is_batch_supported,
-			ARRAY_SIZE(is_batch_supported));
-		if (ret == 0)
-			hw->is_batch_supported		 = is_batch_supported[0];
-	} else {
-		SENSOR_ERR("Device Tree: can not find gyro node!. Go to use old cust info\n");
-		return NULL;
-	}
-	return hw;
-}
-#endif
-

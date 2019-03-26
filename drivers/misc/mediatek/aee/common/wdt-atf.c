@@ -30,13 +30,20 @@
 #include "aee-common.h"
 #include <mach/mt_secure_api.h>
 
+#include "../../include/mt-plat/mtk_rtc.h"
+#ifdef CONFIG_AMAZON_SIGN_OF_LIFE
+#include <linux/sign_of_life.h>
+#endif
+
+#include <asm/system_misc.h>
+#include <linux/reboot.h>
 
 #define THREAD_INFO(sp) ((struct thread_info *) \
 				((unsigned long)(sp) & ~(THREAD_SIZE - 1)))
 
 #define WDT_PERCPU_LOG_SIZE		2048
 #define WDT_LOG_DEFAULT_SIZE	4096
-#define WDT_SAVE_STACK_SIZE		256
+#define WDT_SAVE_STACK_SIZE		512
 #define MAX_EXCEPTION_FRAME		16
 #define PRINTK_BUFFER_SIZE		512
 
@@ -168,7 +175,7 @@ void aee_wdt_percpu_printf(int cpu, const char *fmt, ...)
 {
 	va_list args;
 
-	if (wdt_percpu_log_buf[cpu] == NULL)
+	if (wdt_percpu_log_buf[cpu] == NULL || (int)(WDT_PERCPU_LOG_SIZE - wdt_percpu_log_length[cpu]) <= 0)
 		return;
 
 	va_start(args, fmt);
@@ -337,6 +344,11 @@ static void aee_save_reg_stack_sram(int cpu)
 
 		memset_io(str_buf, 0, sizeof(str_buf));
 #ifdef CONFIG_ARM64
+		snprintf(str_buf, sizeof(str_buf), "\ncpu %d fp=%08lx, sp=%08lx(NOT accurate)\n",
+						cpu, (unsigned long) regs_buffer_bin[cpu].regs.reg_fp,
+							(unsigned long) regs_buffer_bin[cpu].regs.reg_sp);
+		aee_sram_fiq_log(str_buf);
+
 		snprintf(str_buf, sizeof(str_buf), "\ncpu %d x0->x30 sp pc pstate\n", cpu);
 #else
 		snprintf(str_buf, sizeof(str_buf),
@@ -366,7 +378,7 @@ static void aee_save_reg_stack_sram(int cpu)
 			if (wdt_percpu_stackframe[cpu][i] == 0)
 				break;
 			len += snprintf((str_buf + len), (sizeof(str_buf) - len),
-					"%08lx, ", wdt_percpu_stackframe[cpu][i]);
+					"<%08lx>%pS, ", wdt_percpu_stackframe[cpu][i], (void *) wdt_percpu_stackframe[cpu][i]);
 		}
 		aee_sram_fiq_log(str_buf);
 	}
@@ -387,6 +399,10 @@ void aee_wdt_atf_info(unsigned int cpu, struct pt_regs *regs)
 	int res = 0;
 	struct wd_api *wd_api = NULL;
 
+	pr_err("Watchdog timeout FIQ!!!\n");
+	__show_regs(regs);
+	dump_stack();
+
 	/* LOGD("\n ===> aee_wdt_atf_info : cpu %d\n", cpu); */
 	if (!cpu_possible(cpu)) {
 		aee_wdt_printf("FIQ: Watchdog time out at incorrect CPU %d ?\n", cpu);
@@ -403,7 +419,7 @@ void aee_wdt_atf_info(unsigned int cpu, struct pt_regs *regs)
 	if (regs) {
 		aee_dump_cpu_reg_bin(cpu, regs);
 		aee_rr_rec_fiq_step(AEE_FIQ_STEP_WDT_FIQ_STACK);
-		aee_wdt_dump_stack_bin(cpu, regs->reg_sp, regs->reg_sp + WDT_SAVE_STACK_SIZE);
+		aee_wdt_dump_stack_bin(cpu, regs->reg_fp, regs->reg_fp + WDT_SAVE_STACK_SIZE);
 		aee_wdt_dump_backtrace(cpu, regs);
 	}
 	if (atomic_xchg(&wdt_enter_fiq, 1) != 0) {
@@ -450,11 +466,17 @@ void aee_wdt_atf_info(unsigned int cpu, struct pt_regs *regs)
 #endif
 	aee_sram_fiq_log(wdt_log_buf);
 
+#ifdef CONFIG_AMAZON_SIGN_OF_LIFE
+	life_cycle_set_boot_reason(WARMBOOT_BY_KERNEL_WATCHDOG);
+#endif
+	rtc_mark_reboot_reason(RTC_REBOOT_REASON_SW_WDT);
+
 	/* avoid lock prove to dump_stack in __debug_locks_off() */
 	xchg(&debug_locks, 0);
 	aee_rr_rec_fiq_step(AEE_FIQ_STEP_WDT_IRQ_DONE);
 	aee_rr_rec_exp_type(1);
-	BUG();
+
+	emergency_restart();
 }
 
 void notrace aee_wdt_atf_entry(void)
@@ -475,6 +497,12 @@ void notrace aee_wdt_atf_entry(void)
 		pregs.sp = ((struct atf_aee_regs *)regs)->sp;
 		for (i = 0; i < 31; i++)
 			pregs.regs[i] = ((struct atf_aee_regs *)regs)->regs[i];
+
+		/*
+		 * The SP pointer from atf_aee_regs is wrong!
+		 * Use the one in this function to workaround.
+		 */
+		pregs.sp = current_stack_pointer;
 #else
 		pregs.ARM_cpsr = (unsigned long)((struct atf_aee_regs *)regs)->pstate;
 		pregs.ARM_pc = (unsigned long)((struct atf_aee_regs *)regs)->pc;

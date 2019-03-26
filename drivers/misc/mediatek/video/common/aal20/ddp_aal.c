@@ -6,7 +6,7 @@
 #include <linux/mutex.h>
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
-#include <leds_drv.h>
+/* #include <linux/leds-mt65xx.h> */
 #include <cmdq_record.h>
 #include <ddp_reg.h>
 #include <ddp_drv.h>
@@ -17,14 +17,9 @@
 #ifdef CONFIG_MTK_CLKMGR
 #include <mach/mt_clkmgr.h>
 #else
-#if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6797)
-#include <ddp_clkmgr.h>
+/* #include <ddp_clkmgr.h> */
 #endif
-#endif
-#if defined(CONFIG_ARCH_MT6755)
-/* #include "disp_lowpower.h" */
-/* #include "disp_helper.h" */
-#endif
+
 
 /* To enable debug log: */
 /* # echo aal_dbg:1 > /sys/kernel/debug/dispsys */
@@ -205,13 +200,13 @@ void disp_aal_notify_backlight_changed(int bl_1024)
 
 	service_flags = 0;
 	if (bl_1024 == 0) {
-		backlight_brightness_set(0);
+		/* backlight_brightness_set(0); */
 		/* set backlight = 0 may be not from AAL, we have to let AALService
 		   can turn on backlight on phone resumption */
 		service_flags = AAL_SERVICE_FORCE_UPDATE;
 	} else if (!g_aal_is_init_regs_valid) {
 		/* AAL Service is not running */
-		backlight_brightness_set(bl_1024);
+		/* backlight_brightness_set(bl_1024); */
 	}
 
 	spin_lock_irqsave(&g_aal_hist_lock, flags);
@@ -220,13 +215,6 @@ void disp_aal_notify_backlight_changed(int bl_1024)
 	spin_unlock_irqrestore(&g_aal_hist_lock, flags);
 
 	if (g_aal_is_init_regs_valid) {
-#if defined(CONFIG_ARCH_MT6755)
-		/*
-		if (disp_helper_get_option(DISP_OPT_IDLEMGR_ENTER_ULPS))
-			primary_display_idlemgr_kick(__func__, 1);
-		*/
-#endif
-
 		disp_aal_set_interrupt(1);
 		disp_aal_trigger_refresh();
 	}
@@ -345,7 +333,7 @@ int disp_aal_set_param(DISP_AAL_PARAM __user *param, void *cmdq)
 		g_aal_param.cabc_fltgain_force, g_aal_param.DREGainFltStatus[0],
 		g_aal_param.DREGainFltStatus[8], ret);
 
-	backlight_brightness_set(backlight_value);
+	/* backlight_brightness_set(backlight_value); */
 
 	disp_aal_trigger_refresh();
 

@@ -1,6 +1,9 @@
 #
 # Makefile for IIO Light sensors
 #
+# In case the platform does NOT support this type of sensors
+ccflags-$(CONFIG_MTK_SENSOR_SUPPORT) += -I$(srctree)/drivers/misc/mediatek/alsps/inc
+ccflags-$(CONFIG_MTK_SENSOR_SUPPORT) += -I$(srctree)/drivers/misc/mediatek/hwmon/include
 
 # When adding new entries keep the list in alphabetical order
 obj-$(CONFIG_ADJD_S311)		+= adjd_s311.o
@@ -19,3 +22,4 @@ obj-$(CONFIG_TCS3414)		+= tcs3414.o
 obj-$(CONFIG_TCS3472)		+= tcs3472.o
 obj-$(CONFIG_TSL4531)		+= tsl4531.o
 obj-$(CONFIG_VCNL4000)		+= vcnl4000.o
+obj-$(CONFIG_OPT3001)		+= opt3001.o

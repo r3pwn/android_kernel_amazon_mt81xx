@@ -35,6 +35,14 @@ config MTK_COMBO_CHIP_MT6630
 	  is
 	  MT6630
 
+config MTK_COMBO_CHIP_MT76x2
+	bool "MT76x2"
+	help
+	  this config is used to decided combo chip version
+	  in current platform
+	  is
+	  MT7662/MT7632
+
 config MTK_COMBO_CHIP_CONSYS_6572
 	bool "CONSYS_6572"
 	help
@@ -91,14 +99,6 @@ config MTK_COMBO_CHIP_CONSYS_6735
 	  is
 	  MT6735
 
-config MTK_COMBO_CHIP_CONSYS_6755
-	bool "CONSYS_6755"
-	help
-	  this config is used to decided SOC consys version
-	  in current platform
-	  is
-	  MT6755
-
 config MTK_COMBO_CHIP_CONSYS_6580
 	bool "CONSYS_6580"
 	help
@@ -107,13 +107,6 @@ config MTK_COMBO_CHIP_CONSYS_6580
 	  is
 	  MT6580
 
-config MTK_COMBO_CHIP_CONSYS_6797
-	bool "CONSYS_6797"
-	help
-	  this config is used to decided SOC consys version
-	  in current platform
-	  is
-	  MT6797
 endchoice
 
 config MTK_COMBO_CHIP
@@ -121,16 +114,15 @@ config MTK_COMBO_CHIP
 	default "MT6620" if MTK_COMBO_CHIP_MT6620
 	default "MT6628" if MTK_COMBO_CHIP_MT6628
 	default "MT6630" if MTK_COMBO_CHIP_MT6630
+	default "MT76x2" if MTK_COMBO_CHIP_MT76x2
 	default "CONSYS_6572" if MTK_COMBO_CHIP_CONSYS_6572
 	default "CONSYS_6582" if MTK_COMBO_CHIP_CONSYS_6582
 	default "CONSYS_8127" if MTK_COMBO_CHIP_CONSYS_8127
 	default "CONSYS_6752" if MTK_COMBO_CHIP_CONSYS_6752
-	default "CONSYS_6755" if MTK_COMBO_CHIP_CONSYS_6755
 	default "CONSYS_6592" if MTK_COMBO_CHIP_CONSYS_6592
 	default "CONSYS_8163" if MTK_COMBO_CHIP_CONSYS_8163
 	default "CONSYS_6735" if MTK_COMBO_CHIP_CONSYS_6735
 	default "CONSYS_6580" if MTK_COMBO_CHIP_CONSYS_6580
-	default "CONSYS_6797" if MTK_COMBO_CHIP_CONSYS_6797
 	help
 	  this feature is used to identify combo chip version or SOC chip
 	  consys version.
@@ -218,10 +210,17 @@ config MTK_COMBO_WIFI
 	select WIRELESS_EXT
 	select WEXT_PRIV
 
+config MTK_BT_SUPPORT
+	bool "MTK_BT_SUPPORT"
+	help
+	   When this option set to yes, the MTK 76x2 Bluetooth solution will be
+	   included.
+	   The config is only used for 76x2 Bluetooth driver. No meanings for
+	   other BT driver
+
 config MTK_WAPI_SUPPORT
 	bool "MTK_WAPI_SUPPORT"
 	depends on MTK_COMBO_WIFI
-	default y
 	help
 	  if it is set to TRUE: Support WAPI (WLAN Authentication and
 	  Privacy Infrastructure)
@@ -246,6 +245,17 @@ config MTK_WIFI_MCC_SUPPORT
 	   if it is set to TRUE, wlan will support Multi-Channel Concurrency,
 	   otherwise, only support Single Channel Concurrency
 
+config MTK_DHCPV6C_WIFI
+	bool "MTK_DHCPV6C_WIFI"
+	help
+	  no: disable this feature
+
+config MTK_WFD_SUPPORT
+	bool "MTK_WFD_SUPPORT"
+	depends on MTK_COMBO_WIFI
+	help
+	  Wi-Fi Display Switch
+
 config MTK_CONN_LTE_IDC_SUPPORT
 	bool "MediaTek CONN LTE IDC support"
 	select MTK_CONN_MD
@@ -253,8 +263,32 @@ config MTK_CONN_LTE_IDC_SUPPORT
 	help
 	  This option enables CONN LTE IDC support
 
-config MTK_GPS_REGISTER_SETTING
-	tristate "MediaTek GPS Register Setting"
-	depends on MTK_COMBO_GPS
+config MTK_WIFI_ANTENNA_SWITCH
+	bool "MTK_WIFI_ANTENNA_SWITCH"
+	depends on ARCH_MT8163
+	default n
 	help
-	   GPS register settings.
+	  Enable manual antenna switch for MT8163 iLNA.
+
+config MTK_WIFI_ANTENNA_SELECT
+	bool "MTK_WIFI_ANTENNA_SELECT"
+	depends on MTK_WIFI_ANTENNA_SWITCH
+	default n
+	help
+	  Enable antenna selection.
+
+
+config MTK_WIFI_OOBE_AP_MODE
+	bool "MTK_WIFI_OOBE_AP_MODE"
+	depends on ARCH_MT8163
+	default n
+	help
+	  Enable OOBE AP mode.
+
+config MTK_WIFI_LOGGING_REDUCTION
+	bool "MTK_WIFI_LOGGING_REDUCTION"
+	depends on ARCH_MT8163
+	default n
+	help
+	  Ease Wifi logging.
+

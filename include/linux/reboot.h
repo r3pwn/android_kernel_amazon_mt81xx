@@ -71,6 +71,7 @@ void ctrl_alt_del(void);
 extern char poweroff_cmd[POWEROFF_CMD_PATH_LEN];
 
 extern int orderly_poweroff(bool force);
+extern int orderly_reboot(bool force);
 
 /*
  * Emergency restart, callable from an interrupt handler.

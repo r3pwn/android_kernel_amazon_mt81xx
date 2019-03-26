@@ -26,6 +26,10 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/fb.h>
+#ifdef CONFIG_TOUCHSCREEN_SET_INTERRUPT_TO_INPUT
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+#endif
 
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
@@ -59,6 +63,10 @@ struct of_device_id touch_of_match[] = {
 	{ .compatible = "mediatek,mt8163-touch", },
 	{},
 };
+
+#ifdef CONFIG_TOUCHSCREEN_SET_INTERRUPT_TO_INPUT
+static int interrupt_gpio = -1;
+#endif
 
 void tpd_get_dts_info(void)
 {
@@ -109,8 +117,14 @@ void tpd_gpio_as_int(int pin)
 {
 	mutex_lock(&tpd_set_gpio_mutex);
 	TPD_DEBUG("[tpd]tpd_gpio_as_int\n");
-	if (pin == 1)
+	if (pin == 1) {
 		pinctrl_select_state(pinctrl1, eint_as_int);
+
+#ifdef CONFIG_TOUCHSCREEN_SET_INTERRUPT_TO_INPUT
+		if (interrupt_gpio >= 0)
+			gpio_direction_input(interrupt_gpio);
+#endif
+	}
 	mutex_unlock(&tpd_set_gpio_mutex);
 }
 
@@ -145,7 +159,7 @@ int tpd_get_gpio_info(struct platform_device *pdev)
 	pins_default = pinctrl_lookup_state(pinctrl1, "default");
 	if (IS_ERR(pins_default)) {
 		ret = PTR_ERR(pins_default);
-		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl default %d!\n", ret);
+		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl default!\n");
 	}
 	eint_as_int = pinctrl_lookup_state(pinctrl1, "state_eint_as_int");
 	if (IS_ERR(eint_as_int)) {
@@ -177,6 +191,21 @@ int tpd_get_gpio_info(struct platform_device *pdev)
 		dev_err(&pdev->dev, "fwq Cannot find touch pinctrl state_rst_output1!\n");
 		return ret;
 	}
+#ifdef CONFIG_TOUCHSCREEN_SET_INTERRUPT_TO_INPUT
+	interrupt_gpio = of_get_named_gpio(pdev->dev.of_node, "interrupt-gpio", 0);
+	if (interrupt_gpio < 0) {
+		ret = interrupt_gpio;
+		dev_err(&pdev->dev, "fwq Cannot find interrupt gpio\n");
+		return ret;
+	}
+
+	ret = gpio_request(interrupt_gpio, "tpd-interrupt");
+	if (ret) {
+		dev_err(&pdev->dev, "fwq Cannot request tpd interrupt gpio\n");
+		return ret;
+	}
+#endif
+
 	TPD_DEBUG("[tpd%d] mt_tpd_pinctrl----------\n", pdev->id);
 	return 0;
 }
@@ -290,8 +319,8 @@ static long tpd_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned lon
 
 	return err;
 }
-static struct work_struct touch_resume_work;
-static struct workqueue_struct *touch_resume_workqueue;
+
+
 static const struct file_operations tpd_fops = {
 /* .owner = THIS_MODULE, */
 	.open = tpd_misc_open,
@@ -348,17 +377,10 @@ static struct tpd_driver_t *g_tpd_drv;
 /* hh: use fb_notifier */
 static struct notifier_block tpd_fb_notifier;
 /* use fb_notifier */
-static void touch_resume_workqueue_callback(struct work_struct *work)
-{
-	TPD_DEBUG("GTP touch_resume_workqueue_callback\n");
-	g_tpd_drv->resume(NULL);
-	tpd_suspend_flag = 0;
-}
 static int tpd_fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data)
 {
 	struct fb_event *evdata = NULL;
 	int blank;
-	int err = 0;
 
 	TPD_DEBUG("tpd_fb_notifier_callback\n");
 
@@ -372,20 +394,13 @@ static int tpd_fb_notifier_callback(struct notifier_block *self, unsigned long e
 	switch (blank) {
 	case FB_BLANK_UNBLANK:
 		TPD_DMESG("LCD ON Notify\n");
-		if (g_tpd_drv && tpd_suspend_flag) {
-			err = queue_work(touch_resume_workqueue, &touch_resume_work);
-			if (!err) {
-				TPD_DMESG("start touch_resume_workqueue failed\n");
-				return err;
-			}
-		}
+		if (g_tpd_drv && tpd_suspend_flag)
+			g_tpd_drv->resume(NULL);
+		tpd_suspend_flag = 0;
 		break;
 	case FB_BLANK_POWERDOWN:
 		TPD_DMESG("LCD OFF Notify\n");
 		if (g_tpd_drv)
-			err = cancel_work_sync(&touch_resume_work);
-			if (!err)
-				TPD_DMESG("cancel touch_resume_workqueue err = %d\n", err);
 			g_tpd_drv->suspend(NULL);
 		tpd_suspend_flag = 1;
 		break;
@@ -583,8 +598,6 @@ static int tpd_probe(struct platform_device *pdev)
 			return 0;
 		}
 	}
-	touch_resume_workqueue = create_singlethread_workqueue("touch_resume");
-	INIT_WORK(&touch_resume_work, touch_resume_workqueue_callback);
 	/* use fb_notifier */
 	tpd_fb_notifier.notifier_call = tpd_fb_notifier_callback;
 	if (fb_register_client(&tpd_fb_notifier))

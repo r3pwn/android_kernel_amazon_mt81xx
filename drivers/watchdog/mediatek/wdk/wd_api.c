@@ -546,9 +546,11 @@ int get_wd_api(struct wd_api **obj)
 	*obj = &g_wd_api_obj;
 	if (NULL == *obj) {
 		res = -1;
+		/* printk("get_wd_public_interface_obj null pointer error\n"); */
 	}
 	if ((*obj)->ready == 0) {
 		res = -2;
+		/* printk("get_wd_public_api not ready\n"); */
 	}
 	return res;
 }
@@ -558,7 +560,7 @@ int get_wd_api(struct wd_api **obj)
 */
 void arch_reset(char mode, const char *cmd)
 {
-	char reboot = 1;
+	char reboot = 0;
 	int res = 0;
 	struct wd_api *wd_api = NULL;
 
@@ -578,12 +580,18 @@ void arch_reset(char mode, const char *cmd)
 #ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
 		rtc_mark_kpoc();
 #endif
+	} else if (cmd && !strcmp(cmd, "enter_kpoc")) {
+#ifdef CONFIG_MTK_AUTO_POWER_ON_WITH_CHARGER
+		rtc_mark_enter_kpoc();
+#endif
+	} else if (cmd && !strcmp(cmd, "rpmbp")) {
+		mtk_wd_SetNonResetReg2(0,1);
 	} else {
 		reboot = 1;
 	}
 
 	if (res)
-		pr_err("arch_reset, get wd api error %d\n", res);
+		pr_notice("arch_reset, get wd api error %d\n", res);
 	else
 		wd_api->wd_sw_reset(reboot);
  #endif

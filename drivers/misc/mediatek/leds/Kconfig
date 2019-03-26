@@ -13,5 +13,18 @@ config LIGHTNESS_MAPPING_VALUE
  	---help---
 	  Backlight brightness mapping value, from 0 to 255.
 
-config TB8173_EVB
-	bool "Support TB8173 EVB board"
+config BACKLIGHT_SUPPORT_LP8557
+	bool "Support backlight lp8557 board"
+
+config ENABLE_BACKLIGHT_FACTOR
+	tristate "MediaTek LED Support"
+	default n
+	---help---
+	  Support backlight of factor,and adapt to different manufacturers to adajust to
+	  the led brightness.
+
+config MTK_LEDS_DEFAULT_BRIGHTNESS
+	bool "MediaTek Led Support Default Brightness"
+	default n
+	---help---
+	  Support setting a default brightness on boot for each led.

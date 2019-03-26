@@ -78,6 +78,7 @@ innolux	Innolux Corporation
 intel	Intel Corporation
 intercontrol	Inter Control Group
 isee	ISEE 2007 S.L.
+issi	ISSI
 isl	Intersil
 karo	Ka-Ro electronics GmbH
 keymile	Keymile GmbH

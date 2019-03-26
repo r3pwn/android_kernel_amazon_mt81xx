@@ -35,14 +35,9 @@
 #include <linux/clockchips.h>
 #include <linux/completion.h>
 #include <linux/of.h>
-#include <linux/cpufreq.h>
 #include <linux/irq_work.h>
 #ifdef CONFIG_TRUSTY
-#ifdef CONFIG_TRUSTY_INTERRUPT_MAP
-#include <linux/trusty/trusty.h>
-#else
 #include <linux/irqdomain.h>
-#endif
 #endif
 
 #include <asm/alternative.h>
@@ -62,9 +57,7 @@
 #ifdef CONFIG_MTPROF
 #include "mt_sched_mon.h"
 #endif
-#include <mt-plat/mtk_ram_console.h>
 
-#include <trace/events/power.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/ipi.h>
 
@@ -89,9 +82,7 @@ enum ipi_msg_type {
 };
 
 #ifdef CONFIG_TRUSTY
-#ifndef CONFIG_TRUSTY_INTERRUPT_MAP
 struct irq_domain *ipi_custom_irq_domain;
-#endif
 #endif
 
 /*
@@ -158,8 +149,6 @@ asmlinkage void secondary_start_kernel(void)
 	struct mm_struct *mm = &init_mm;
 	unsigned int cpu = smp_processor_id();
 
-	aee_rr_rec_hoplug(cpu, 1, 0);
-
 	/*
 	 * All kernel threads share the same mm context; grab a
 	 * reference and switch to it.
@@ -168,55 +157,33 @@ asmlinkage void secondary_start_kernel(void)
 	current->active_mm = mm;
 	cpumask_set_cpu(cpu, mm_cpumask(mm));
 
-	aee_rr_rec_hoplug(cpu, 2, 0);
-
 	set_my_cpu_offset(per_cpu_offset(smp_processor_id()));
 	printk("CPU%u: Booted secondary processor\n", cpu);
-
-	aee_rr_rec_hoplug(cpu, 3, 0);
 
 	/*
 	 * TTBR0 is only used for the identity mapping at this stage. Make it
 	 * point to zero page to avoid speculatively fetching new entries.
 	 */
 	cpu_set_reserved_ttbr0();
-
-	aee_rr_rec_hoplug(cpu, 4, 0);
-
 	flush_tlb_all();
 
-	aee_rr_rec_hoplug(cpu, 5, 0);
-
 	preempt_disable();
-
-	aee_rr_rec_hoplug(cpu, 6, 0);
-
 	trace_hardirqs_off();
-
-	aee_rr_rec_hoplug(cpu, 7, 0);
 
 	if (cpu_ops[cpu]->cpu_postboot)
 		cpu_ops[cpu]->cpu_postboot();
-
-	aee_rr_rec_hoplug(cpu, 8, 0);
 
 	/*
 	 * Log the CPU info before it is marked online and might get read.
 	 */
 	cpuinfo_store_cpu();
 
-	aee_rr_rec_hoplug(cpu, 9, 0);
-
 	/*
 	 * Enable GIC and timers.
 	 */
 	notify_cpu_starting(cpu);
 
-	aee_rr_rec_hoplug(cpu, 10, 0);
-
 	smp_store_cpu_info(cpu);
-
-	aee_rr_rec_hoplug(cpu, 11, 0);
 
 	/*
 	 * OK, now it's safe to let the boot CPU continue.  Wait for
@@ -224,31 +191,16 @@ asmlinkage void secondary_start_kernel(void)
 	 * before we continue.
 	 */
 	set_cpu_online(cpu, true);
-
-	aee_rr_rec_hoplug(cpu, 12, 0);
-
 	complete(&cpu_running);
 
-	aee_rr_rec_hoplug(cpu, 13, 0);
-
 	local_dbg_enable();
-
-	aee_rr_rec_hoplug(cpu, 14, 0);
-
 	local_irq_enable();
-
-	aee_rr_rec_hoplug(cpu, 15, 0);
-
 	local_async_enable();
-
-	aee_rr_rec_hoplug(cpu, 16, 0);
 
 	/*
 	 * OK, it's off to the idle thread for us
 	 */
 	cpu_startup_entry(CPUHP_ONLINE);
-
-	aee_rr_rec_hoplug(cpu, 17, 0);
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -287,25 +239,17 @@ int __cpu_disable(void)
 	 * Take this CPU offline.  Once we clear this, we can't return,
 	 * and we must not schedule until we're ready to give up the cpu.
 	 */
-	aee_rr_rec_hoplug(cpu, 71, 0);
-
 	set_cpu_online(cpu, false);
-
-	aee_rr_rec_hoplug(cpu, 72, 0);
 
 	/*
 	 * OK - migrate IRQs away from this CPU
 	 */
 	migrate_irqs();
 
-	aee_rr_rec_hoplug(cpu, 73, 0);
-
 	/*
 	 * Remove this CPU from the vm mask set of all processes.
 	 */
 	clear_tasks_mm_cpumask(cpu);
-
-	aee_rr_rec_hoplug(cpu, 74, 0);
 
 	return 0;
 }
@@ -359,20 +303,12 @@ void cpu_die(void)
 {
 	unsigned int cpu = smp_processor_id();
 
-	aee_rr_rec_hoplug(cpu, 51, 0);
-
 	idle_task_exit();
-
-	aee_rr_rec_hoplug(cpu, 52, 0);
 
 	local_irq_disable();
 
-	aee_rr_rec_hoplug(cpu, 53, 0);
-
 	/* Tell __cpu_die() that this CPU is now safe to dispose of */
 	complete(&cpu_died);
-
-	aee_rr_rec_hoplug(cpu, 54, 0);
 
 	/*
 	 * Actually shutdown the CPU. This must never fail. The specific hotplug
@@ -381,20 +317,14 @@ void cpu_die(void)
 	 */
 	cpu_ops[cpu]->cpu_die(cpu);
 
-	aee_rr_rec_hoplug(cpu, 55, 0);
-
 	BUG();
 }
 #endif
 
 void __init smp_cpus_done(unsigned int max_cpus)
 {
-	unsigned long bogosum = loops_per_jiffy * num_online_cpus();
-
-	pr_info("SMP: Total of %d processors activated (%lu.%02lu BogoMIPS).\n",
-			num_online_cpus(), bogosum / (500000/HZ),
-			(bogosum / (5000/HZ)) % 100);
-	apply_alternatives_all();
+	pr_info("SMP: Total of %d processors activated.\n", num_online_cpus());
+	apply_alternatives();
 }
 
 void __init smp_prepare_boot_cpu(void)
@@ -730,11 +660,7 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 	default:
 #ifdef CONFIG_TRUSTY
 		if (ipinr >= IPI_CUSTOM_FIRST && ipinr <= IPI_CUSTOM_LAST)
-#ifndef CONFIG_TRUSTY_INTERRUPT_MAP
 			handle_domain_irq(ipi_custom_irq_domain, ipinr, regs);
-#else
-			handle_trusty_ipi(ipinr);
-#endif
 		else
 #endif
 		pr_crit("CPU%u: Unknown IPI message 0x%x\n", cpu, ipinr);
@@ -747,7 +673,6 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 }
 
 #ifdef CONFIG_TRUSTY
-#ifndef CONFIG_TRUSTY_INTERRUPT_MAP
 static void custom_ipi_enable(struct irq_data *data)
 {
 	/*
@@ -805,7 +730,6 @@ static int __init smp_custom_ipi_init(void)
 }
 core_initcall(smp_custom_ipi_init);
 #endif
-#endif
 
 void smp_send_reschedule(int cpu)
 {
@@ -848,85 +772,3 @@ int setup_profiling_timer(unsigned int multiplier)
 {
 	return -EINVAL;
 }
-
-#ifdef CONFIG_CPU_FREQ
-
-static DEFINE_PER_CPU(atomic_long_t, cpu_max_freq);
-DEFINE_PER_CPU(atomic_long_t, cpu_freq_capacity);
-
-/*
- * Scheduler load-tracking scale-invariance
- *
- * Provides the scheduler with a scale-invariance correction factor that
- * compensates for frequency scaling through arch_scale_freq_capacity()
- * (implemented in topology.c).
- */
-static inline
-void scale_freq_capacity(int cpu, unsigned long curr, unsigned long max)
-{
-	unsigned long capacity;
-
-	if (!max)
-		return;
-
-	capacity = (curr << SCHED_CAPACITY_SHIFT) / max;
-	atomic_long_set(&per_cpu(cpu_freq_capacity, cpu), capacity);
-}
-
-static int cpufreq_callback(struct notifier_block *nb,
-					unsigned long val, void *data)
-{
-	struct cpufreq_freqs *freq = data;
-	int cpu = freq->cpu;
-	unsigned long max = atomic_long_read(&per_cpu(cpu_max_freq, cpu));
-
-	if (freq->flags & CPUFREQ_CONST_LOOPS)
-		return NOTIFY_OK;
-
-	if (val == CPUFREQ_PRECHANGE) {
-		scale_freq_capacity(cpu, freq->new, max);
-		trace_cpu_capacity(capacity_curr_of(cpu), cpu);
-	}
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block cpufreq_notifier = {
-	.notifier_call  = cpufreq_callback,
-};
-
-static int cpufreq_policy_callback(struct notifier_block *nb,
-						unsigned long val, void *data)
-{
-	struct cpufreq_policy *policy = data;
-	int i;
-
-	if (val != CPUFREQ_NOTIFY)
-		return NOTIFY_OK;
-
-	for_each_cpu(i, policy->cpus) {
-		scale_freq_capacity(i, policy->cur, policy->max);
-		atomic_long_set(&per_cpu(cpu_max_freq, i), policy->max);
-	}
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block cpufreq_policy_notifier = {
-	.notifier_call	= cpufreq_policy_callback,
-};
-
-static int __init register_cpufreq_notifier(void)
-{
-	int ret;
-
-	ret = cpufreq_register_notifier(&cpufreq_notifier,
-						CPUFREQ_TRANSITION_NOTIFIER);
-	if (ret)
-		return ret;
-
-	return cpufreq_register_notifier(&cpufreq_policy_notifier,
-						CPUFREQ_POLICY_NOTIFIER);
-}
-core_initcall(register_cpufreq_notifier);
-#endif

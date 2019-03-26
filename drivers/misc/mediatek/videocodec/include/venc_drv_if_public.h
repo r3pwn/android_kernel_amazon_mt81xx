@@ -23,7 +23,6 @@ typedef enum __VENC_DRV_QUERY_TYPE_T {
 	VENC_DRV_QUERY_TYPE_MCI_SUPPORTED,          /* /< Query if the codec support MCI */
 	VENC_DRV_QUERY_TYPE_CHIP_NAME,              /* /< Query chip name */
 	VENC_DRV_QUERY_TYPE_INPUT_BUF_LIMIT,        /* /< Query input buffer stride and sliceheight */
-
 	/* /< Query if recorder scenario adjust to normal priority, for 6571. */
 	VENC_DRV_QUERY_TYPE_NORMAL_PRIO,
 
@@ -76,6 +75,7 @@ typedef enum __VENC_DRV_VIDEO_FORMAT_T {
 	VENC_DRV_VIDEO_FORMAT_JPEG,                 /* /< JPEG picture format */
 	VENC_DRV_VIDEO_FORMAT_HEVC,                 /* /< HEVC video format */
 	VENC_DRV_VIDEO_FORMAT_H264SEC,              /* /<: Secure H.264 */
+	VENC_DRV_VIDEO_FORMAT_INHOUSE_H264SEC,      /* /<: Inhouse Secure H.264 */
 	VENC_DRV_VIDEO_FORMAT_MAX = 0xFFFFFFFF      /* /< Max VENC_DRV_VIDEO_FORMAT_T value */
 } VENC_DRV_VIDEO_FORMAT_T;
 

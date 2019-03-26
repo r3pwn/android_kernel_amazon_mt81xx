@@ -25,35 +25,23 @@
 obj-$(CONFIG_MTK_FB) += 			\
 				data_rgb888_64x64.o		\
 				data_rgb888_64x64_golden.o \
-				mtkfb_fence.o \
-				fbconfig_kdebug.o
+				mtkfb_fence.o
 
-ifeq (y, $(filter y, $(CONFIG_ARCH_MT6735) $(CONFIG_ARCH_MT6735M) $(CONFIG_ARCH_MT6753) $(CONFIG_ARCH_MT6580)))
+
+ifeq (y, $(filter y, $(CONFIG_ARCH_MT6735) $(CONFIG_ARCH_MT6735M) $(CONFIG_ARCH_MT6753) ))
 obj-$(CONFIG_MTK_FB) += mtkfb.o
-endif
-
-ifeq (y, $(filter y, $(CONFIG_ARCH_MT6797)))
-obj-y += color20/
 endif
 
 ifeq (y, $(filter y, $(CONFIG_ARCH_MT6797) $(CONFIG_ARCH_MT6755) $(CONFIG_ARCH_MT6752) $(CONFIG_ARCH_MT6735) $(CONFIG_ARCH_MT6735M) $(CONFIG_ARCH_MT6753) $(CONFIG_ARCH_MT6580)))
 obj-y += aal20/
 obj-y += corr10/
-endif
-
-ifeq (y, $(filter y, $(CONFIG_ARCH_MT6797) $(CONFIG_ARCH_MT6753)))
 obj-y += od10/
 endif
 
 # Todo: newer chip
-ifeq (y, $(filter y, $(CONFIG_ARCH_MT6752) $(CONFIG_ARCH_MT6735) $(CONFIG_ARCH_MT6735M) $(CONFIG_ARCH_MT6753) $(CONFIG_ARCH_MT6580) $(CONFIG_ARCH_MT6795) $(CONFIG_ARCH_MT6595)))
-obj-y += rdma10/
-obj-y += wdma10/
-endif
-# Todo: newer chip
-
-ifeq (y, $(filter y, $(CONFIG_ARCH_MT6755) $(CONFIG_ARCH_MT6752) $(CONFIG_ARCH_MT6735) $(CONFIG_ARCH_MT6735M) $(CONFIG_ARCH_MT6753) $(CONFIG_ARCH_MT6580) $(CONFIG_ARCH_MT6795) $(CONFIG_ARCH_MT6595)))
-obj-y += color20/
+ifeq (y, $(filter y, $(CONFIG_ARCH_MT6797) $(CONFIG_ARCH_MT6755) $(CONFIG_ARCH_MT6752) $(CONFIG_ARCH_MT6735) $(CONFIG_ARCH_MT6735M) $(CONFIG_ARCH_MT6753) $(CONFIG_ARCH_MT6580) $(CONFIG_ARCH_MT6795) $(CONFIG_ARCH_MT6595)))
+obj-y += \
+	color20/
 endif
 
 ccflags-y += \

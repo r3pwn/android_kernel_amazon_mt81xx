@@ -164,7 +164,7 @@ s32 g_rtc_fg_soc = 0;
 s32 g_I_SENSE_offset = 0;
 
 /* aging mechanism */
-#if defined(CONFIG_MTK_ENABLE_AGING_ALGORITHM) && !defined(CONFIG_POWER_EXT)
+#ifdef CONFIG_MTK_ENABLE_AGING_ALGORITHM
 
 static s32 aging_ocv_1;
 static s32 aging_ocv_2;
@@ -255,7 +255,7 @@ int BattThermistorConverTemp(int Res)
 	int TBatt_Value = -200, TMP1 = 0, TMP2 = 0;
 	int saddles = p_bat_meter_data->battery_ntc_table_saddles;
 	struct BATT_TEMPERATURE *batt_temp_table =
-	    (struct BATT_TEMPERATURE *)p_bat_meter_data->p_batt_temperature_table;
+	    (struct BATT_TEMPERATURE *) p_bat_meter_data->p_batt_temperature_table;
 
 
 	if (Res >= batt_temp_table[0].TemperatureR) {
@@ -379,7 +379,7 @@ int BattVoltToTemp(int dwVolt)
 	int sBaTTMP = -100;
 	s64 critical_low_v;
 	struct BATT_TEMPERATURE *batt_temp_table =
-	    (struct BATT_TEMPERATURE *)p_bat_meter_data->p_batt_temperature_table;
+	    (struct BATT_TEMPERATURE *) p_bat_meter_data->p_batt_temperature_table;
 
 	critical_low_v =
 	    (batt_temp_table[0].TemperatureR * (s64) p_bat_meter_data->rbat_pull_up_volt);
@@ -437,7 +437,7 @@ int force_get_tbat(void)
 			pr_warn("[BATTERY] No battery detected.\n");
 			battery_exist = false;
 		} else {
-			pr_debug("[BATTERY] Battery detected!\n");
+			pr_info("[BATTERY] Battery detected!\n");
 			battery_exist = true;
 		}
 		battery_check_done = true;
@@ -746,8 +746,7 @@ s32 fgauge_read_r_bat_by_v(s32 voltage)
 }
 
 
-void fgauge_construct_battery_profile(s32 temperature,
-				      struct BATTERY_PROFILE_STRUCT *temp_profile_p)
+void fgauge_construct_battery_profile(s32 temperature, struct BATTERY_PROFILE_STRUCT *temp_profile_p)
 {
 	struct BATTERY_PROFILE_STRUCT *low_profile_p, *high_profile_p;
 	s32 low_temperature, high_temperature;
@@ -1066,11 +1065,11 @@ void fgauge_construct_table_by_temp(void)
 			 "[fgauge_construct_table_by_temp] reconstruct table by temperature change from (%d) to (%d)\r\n",
 			 last_temp, avg_temp);
 		fgauge_construct_r_table_profile(curr_temp,
-						 fgauge_get_profile_r_table
-						 (p_bat_meter_data->temperature_t));
+						 fgauge_get_profile_r_table(p_bat_meter_data->
+									    temperature_t));
 		fgauge_construct_battery_profile(curr_temp,
-						 fgauge_get_profile
-						 (p_bat_meter_data->temperature_t));
+						 fgauge_get_profile(p_bat_meter_data->
+								    temperature_t));
 		last_temp = avg_temp;
 		update_qmax_by_temp();
 	}
@@ -1265,7 +1264,7 @@ void dod_init(void)
 	g_rtc_soc_debug = g_rtc_fg_soc;
 #endif
 
-	pr_warn("%s: %d, %d, %d, %d\n", __func__, g_hw_ocv_debug, g_hw_soc_debug, g_sw_soc_debug,
+	pr_notice("%s: %d, %d, %d, %d\n", __func__, g_hw_ocv_debug, g_hw_soc_debug, g_sw_soc_debug,
 		  g_rtc_soc_debug);
 
 #if defined(CONFIG_SOC_BY_HW_FG)
@@ -1721,7 +1720,7 @@ void fgauge_algo_run_init(void)
 	gFG_voltage = gFG_voltage + fgauge_compensate_battery_voltage_recursion(gFG_voltage, 5);	/* mV */
 	gFG_voltage = gFG_voltage + p_bat_meter_data->ocv_board_compesate;
 
-	pr_warn("cv:%d ocv:%d i:%d r:%d\n", gFG_voltage_init, gFG_voltage, gFG_current,
+	pr_notice("cv:%d ocv:%d i:%d r:%d\n", gFG_voltage_init, gFG_voltage, gFG_current,
 		  gFG_resistance_bat);
 
 	ret = battery_meter_ctrl(BATTERY_METER_CMD_GET_HW_FG_CAR, &gFG_columb);
@@ -2046,9 +2045,7 @@ s32 battery_meter_get_charging_current(void)
 	bm_print(BM_LOG_FULL, "[g_Get_I_Charging] ADC_I_SENSE(After)=%d\r\n", ADC_I_SENSE);
 
 	if (ADC_I_SENSE > ADC_BAT_SENSE)
-		ICharging =
-		    (ADC_I_SENSE - ADC_BAT_SENSE +
-		     g_I_SENSE_offset) * 1000 / p_bat_meter_data->cust_r_sense;
+		ICharging = (ADC_I_SENSE - ADC_BAT_SENSE + g_I_SENSE_offset) * 1000 / p_bat_meter_data->cust_r_sense;
 	else
 		ICharging = 0;
 
@@ -2228,7 +2225,7 @@ void reset_parameter_car(void)
 	gFG_pre_columb_count = 0;
 #endif
 
-#if defined(CONFIG_MTK_ENABLE_AGING_ALGORITHM) && !defined(CONFIG_POWER_EXT)
+#ifdef CONFIG_MTK_ENABLE_AGING_ALGORITHM
 	aging_ocv_1 = 0;
 	aging_ocv_2 = 0;
 #endif
@@ -2456,7 +2453,7 @@ static ssize_t store_FG_Battery_Cycle(struct device *dev, struct device_attribut
 	ret = kstrtoint(buf, 0, &cycle);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	bm_print(BM_LOG_CRTI, "[FG] update battery cycle count: %d\n", cycle);
@@ -2485,7 +2482,7 @@ static ssize_t store_FG_Max_Battery_Voltage(struct device *dev, struct device_at
 	ret = kstrtoint(buf, 0, &voltage);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (voltage > gFG_max_voltage) {
@@ -2516,7 +2513,7 @@ static ssize_t store_FG_Min_Battery_Voltage(struct device *dev, struct device_at
 	ret = kstrtoint(buf, 0, &voltage);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (voltage < gFG_min_voltage) {
@@ -2547,7 +2544,7 @@ static ssize_t store_FG_Max_Battery_Current(struct device *dev, struct device_at
 	ret = kstrtoint(buf, 0, &bat_current);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (bat_current > gFG_max_current) {
@@ -2578,7 +2575,7 @@ static ssize_t store_FG_Min_Battery_Current(struct device *dev, struct device_at
 	ret = kstrtoint(buf, 0, &bat_current);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (bat_current < gFG_min_current) {
@@ -2609,7 +2606,7 @@ static ssize_t store_FG_Max_Battery_Temperature(struct device *dev, struct devic
 	ret = kstrtoint(buf, 0, &temp);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (temp > gFG_max_temperature) {
@@ -2640,7 +2637,7 @@ static ssize_t store_FG_Min_Battery_Temperature(struct device *dev, struct devic
 	ret = kstrtoint(buf, 0, &temp);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 	if (temp < gFG_min_temperature) {
 		bm_print(BM_LOG_CRTI, "[FG] update battery min temp: %d\n", temp);
@@ -2669,11 +2666,11 @@ static ssize_t store_FG_Aging_Factor(struct device *dev, struct device_attribute
 	ret = kstrtoint(buf, 0, &factor);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (factor <= 100 && factor > 0) {
-		pr_debug("[FG] update battery aging factor: old(%d), new(%d)\n",
+		pr_info("[FG] update battery aging factor: old(%d), new(%d)\n",
 			gFG_aging_factor, factor);
 
 		gFG_aging_factor = factor;
@@ -2706,7 +2703,7 @@ static ssize_t store_FG_R_Offset(struct device *dev, struct device_attribute *at
 	ret = kstrtoint(buf, 0, &offset);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	bm_print(BM_LOG_CRTI, "[FG] update g_R_FG_offset to %d\n", offset);
@@ -2964,7 +2961,7 @@ static ssize_t store_car_tune_value(struct device *dev, struct device_attribute 
 	ret = kstrtoint(buf, 0, &car_tune_value);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (p_bat_meter_data)
@@ -2989,7 +2986,7 @@ static ssize_t store_charging_current_limit(struct device *dev, struct device_at
 	ret = kstrtoint(buf, 0, &charging_current_limit);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	set_bat_charging_current_limit(charging_current_limit);
@@ -3017,7 +3014,7 @@ static int battery_meter_probe(struct platform_device *dev)
 	char *temp_strptr;
 #endif
 
-	p_bat_meter_data = (struct mt_battery_meter_custom_data *)dev->dev.platform_data;
+	p_bat_meter_data = (struct mt_battery_meter_custom_data *) dev->dev.platform_data;
 
 	if (!p_bat_meter_data) {
 
@@ -3032,14 +3029,13 @@ static int battery_meter_probe(struct platform_device *dev)
 
 #if defined(CONFIG_MTK_KERNEL_POWER_OFF_CHARGING)
 	if (get_boot_mode() == LOW_POWER_OFF_CHARGING_BOOT
-	    || get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT) {
-		temp_strptr =
-		    kzalloc(strlen(saved_command_line) + strlen(" androidboot.mode=charger") + 1,
-			    GFP_KERNEL);
-		strcpy(temp_strptr, saved_command_line);
-		strcat(temp_strptr, " androidboot.mode=charger");
-		saved_command_line = temp_strptr;
-	}
+		|| get_boot_mode() == KERNEL_POWER_OFF_CHARGING_BOOT) {
+		temp_strptr = kzalloc(strlen(saved_command_line) + strlen(" androidboot.mode=charger") + 1,
+			GFP_KERNEL);
+			strcpy(temp_strptr, saved_command_line);
+			strcat(temp_strptr, " androidboot.mode=charger");
+			saved_command_line = temp_strptr;
+		}
 #endif
 
 	/* select battery meter control method */
@@ -3112,7 +3108,7 @@ static int battery_meter_suspend(struct platform_device *dev, pm_message_t state
 	return 0;
 }
 
-#if defined(CONFIG_MTK_ENABLE_AGING_ALGORITHM) && !defined(CONFIG_POWER_EXT)
+#ifdef CONFIG_MTK_ENABLE_AGING_ALGORITHM
 static void battery_aging_check(void)
 {
 	s32 hw_ocv_after_sleep;
@@ -3251,11 +3247,11 @@ static void battery_aging_check(void)
 				gFG_DOD0 = DOD_hwocv;
 				gFG_DOD1 = gFG_DOD0;
 				reset_parameter_car();
-				pr_warn
+				pr_notice
 				    ("[self-discharge check] reset to HWOCV. dod_ocv(%d) dod_now(%d)\n",
 				     DOD_hwocv, DOD_now);
 			}
-			pr_warn("[self-discharge check] dod_ocv(%d) dod_now(%d)\n", DOD_hwocv,
+			pr_notice("[self-discharge check] dod_ocv(%d) dod_now(%d)\n", DOD_hwocv,
 				  DOD_now);
 		}
 	}

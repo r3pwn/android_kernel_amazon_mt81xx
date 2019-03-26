@@ -17,7 +17,6 @@
 #endif
 #include <linux/gpio.h>
 
-#include "mt_battery_common.h"
 
 #include "mu3d_hal_hw.h"
 #include "xhci-mtk.h"
@@ -333,7 +332,7 @@ static int ssusb_set_vbus(struct vbus_ctrl_info *vbus, int is_on)
 
 	} else if (SSUSB_VBUS_CHARGER == vbus->vbus_mode) {
 		mu3d_dbg(K_DEBUG, "%s() call charger driver api.\n", __func__);
-		bat_charger_boost_enable(is_on);
+		tbl_charger_otg_vbus(is_on);
 
 	} else if (SSUSB_VBUS_DEF_ON == vbus->vbus_mode) {
 		/* nothing to do, turn on by default */
@@ -581,7 +580,8 @@ static irqreturn_t iddig_eint_isr(int irq, void *otg_sx)
 
 	mu3d_dbg(K_INFO, "%s : schedule to delayed work\n", __func__);
 	disable_irq_nosync(otg_switch->iddig_eint_num);
-	schedule_delayed_work(&otg_switch->switch_dwork, OTG_IDDIG_DEBOUNCE * HZ / 1000);
+	/*disable iddig isr first as OTG function is not ready*/
+	/*schedule_delayed_work(&otg_switch->switch_dwork, OTG_IDDIG_DEBOUNCE * HZ / 1000);*/
 	return IRQ_HANDLED;
 }
 
@@ -746,7 +746,8 @@ void __iomem *get_xhci_base(void)
 
 bool mtk_is_host_mode(void)
 {
-	return switch_get_state(g_otg_state) ? true : false;
+/*return switch_get_state(g_otg_state) ? true : false;*/
+	return false;
 }
 
 int is_init_host_for_manual_otg(struct ssusb_mtk *ssusb)

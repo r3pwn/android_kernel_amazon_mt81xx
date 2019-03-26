@@ -253,9 +253,9 @@ ssize_t trusty_smc_sc_add(struct device *dev, struct device_attribute *attr,
 	s32 a, b, ret;
 
 	get_random_bytes(&a, sizeof(s32));
-	a &= 0xFF;
+	a %= 100;
 	get_random_bytes(&b, sizeof(s32));
-	b &= 0xFF;
+	b %= 100;
 	ret = trusty_std_call32(dev, SMC_SC_ADD, a, b, 0);
 	return scnprintf(buf, PAGE_SIZE, "%d + %d = %d\n", a, b, ret);
 }

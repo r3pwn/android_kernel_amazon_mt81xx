@@ -7,7 +7,7 @@ ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6795" "mt6752" "mt6735" "mt6580" "mt
   obj-y += v2/
 endif
 
-ifeq ($(CONFIG_MTK_CMDQ_TAB), y)
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt8173" "mt8163"))
 	# hv1
   # obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
   obj-y += hv1/

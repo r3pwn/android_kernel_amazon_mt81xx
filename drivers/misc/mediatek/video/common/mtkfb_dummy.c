@@ -26,7 +26,6 @@
 /* #include <linux/earlysuspend.h> */
 /* #include <linux/rtpm_prio.h> */
 /* #include "disp_assert_layer.h" */
-/* #include <linux/xlog.h> */
 /* #include <linux/leds-mt65xx.h> */
 /* #include <mach/dma.h> */
 /* #include <mach/irqs.h> */

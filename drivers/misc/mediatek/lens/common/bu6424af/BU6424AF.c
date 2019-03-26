@@ -65,6 +65,7 @@ static int s4AF_WriteReg(u16 a_u2Data)
 
 	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
 
+	g_pstAF_I2Cclient->ext_flag |= I2C_A_FILTER_MSG;
 	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puSendCmd, 2);
 
 	if (i4RetValue < 0) {
@@ -207,16 +208,11 @@ int BU6424AF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 	LOG_INF("Start\n");
 
 	if (*g_pAF_Opened == 2) {
-		char puSendCmd[2];
-
-		puSendCmd[0] = (char)(0x00);
-		puSendCmd[1] = (char)(0x00);
-		i2c_master_send(g_pstAF_I2Cclient, puSendCmd, 2);
 		LOG_INF("Wait\n");
-		/*s4AF_WriteReg(200);
+		s4AF_WriteReg(200);
 		msleep(20);
 		s4AF_WriteReg(100);
-		msleep(20);*/
+		msleep(20);
 	}
 
 	if (*g_pAF_Opened) {

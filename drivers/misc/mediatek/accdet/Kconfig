@@ -9,6 +9,17 @@ config MTK_ACCDET
 
 	  If unsure, say N.
 
+config MTK_AMZN_ACCDET
+	tristate "sbc123/Biscuit ACCDET driver"
+	---help---
+
+	  ACCDET driver support for Biscuit and sbc123 with MTK SOC
+
+	  If you want to use Biscuit and sbc123 ACCDET driver,
+	  say Y or M here.
+
+	  If unsure, say N.
+
 config ACCDET_EINT
 	tristate "MediaTek ACCDET driver"
 	---help---
@@ -64,17 +75,6 @@ config FOUR_KEY_HEADSET
 
 	  If unsure, say N.
 
-config HEADSET_SUPPORT_FIVE_POLE
-	tristate "MediaTek ACCDET driver"
-	---help---
-
-	  HEADSET_SUPPORT_FIVE_POLE support for MediaTek SOC
-
-	  If you want to use MediaTek ACCDET five pole headset,
-	  say Y or M here.
-
-	  If unsure, say N.
-
 config TS3A225E_ACCDET
 	tristate "MediaTek ACCDET driver"
 	---help---
@@ -85,3 +85,37 @@ config TS3A225E_ACCDET
 	  say Y or M here.
 
 	  If unsure, say N.
+
+config ACCDET_OMTP_CTIA_SWITCH
+	tristate "MediaTek ACCDET driver"
+	---help---
+
+	  Switch IC - FSA8049 - support for MediaTek SOC
+
+	  If you want to use MediaTek ACCDET PIN SWAP,
+	  say Y or M here.
+
+	  If unsure, say N.
+
+config ACCDET_OMTP_CTIA_SWITCH_MANUAL
+	tristate "MediaTek ACCDET driver"
+	---help---
+
+	  Switch IC - SD80 or FSA3157 - support for MediaTek SOC
+
+	  If you want to use MediaTek ACCDET PIN SWAP,
+	  say Y or M here.
+
+	  If unsure, say N.
+
+config ACCDET_USE_VCAMAF_POWER
+         tristate "MediaTek ACCDET driver"
+         ---help---
+
+           Use VCAMAF POWER FOR MICBIAS
+
+           If you want to use MediaTek ACCDET VCAMAF POWER,
+           say Y or M here.
+
+           If unsure, say N.
+

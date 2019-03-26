@@ -76,15 +76,6 @@ config MTK_BQ24297_SUPPORT
           Set to Yes if BQ24297 is used.
 	default n
 
-config MTK_BQ24261_SUPPORT
-        bool "MTK_BQ24261_SUPPORT"
-        help
-          This is to enable MediaTek supports to BQ24261.
-          It depends on config MTK_SMART_BATTERY
-          and config MTK_SWCHR_SUPPORT
-          Set to Yes if BQ24261 is used.
-        default n
-
 config MTK_BQ25890_SUPPORT
         bool "MTK_BQ25890_SUPPORT"
         help
@@ -247,12 +238,3 @@ config HIGH_BATTERY_VOLTAGE_SUPPORT
 	  to be supported.
 	  Set No to config if 4.2V battery is
 	  used.
-
-config MTK_PUMP_EXPRESS_PLUS_SUPPORT
-	bool "MediaTek PUMP EXPRESS PLUS"
-	default n
-	help
-	  fast charging, by using switch charger to achive better charging ability
-	  enable this config to support high voltage charging
-	  available vbus input includes 7V/9V/12V
-	  the feature applies to standard charger with pump express plus support

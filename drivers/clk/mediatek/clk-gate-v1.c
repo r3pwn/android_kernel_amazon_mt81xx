@@ -25,17 +25,10 @@
 #include "clk-gate-v1.h"
 
 #if !defined(MT_CCF_DEBUG) || !defined(MT_CCF_BRINGUP)
-#if defined(CONFIG_ARCH_MT6755)
-#define MT_CCF_DEBUG	0
-#define MT_CCF_BRINGUP  0
-#elif defined(CONFIG_ARCH_MT6797)
 #define MT_CCF_DEBUG	1
-#define MT_CCF_BRINGUP  0
-#else
-#define MT_CCF_DEBUG	0
 #define MT_CCF_BRINGUP	0
 #endif
-#endif
+
 /*
  * clk_gate
  */
@@ -77,10 +70,11 @@ static int cg_enable(struct clk_hw *hw)
 	unsigned long flags = 0;
 	struct mtk_clk_gate *cg = to_clk_gate(hw);
 	u32 mask = BIT(cg->bit);
-
-#if MT_CCF_BRINGUP
+#if MT_CCF_DEBUG
 	pr_debug_ratelimited("[CCF] %s: %s, bit: %u\n", __func__,
 			__clk_get_name(hw->clk), cg->bit);
+#endif /* MT_CCF_DEBUG */
+#if MT_CCF_BRINGUP
 	return 0;
 #endif /* MT_CCF_BRINGUP */
 
@@ -101,10 +95,11 @@ static void cg_disable(struct clk_hw *hw)
 	unsigned long flags = 0;
 	struct mtk_clk_gate *cg = to_clk_gate(hw);
 	u32 mask = BIT(cg->bit);
-
-#if MT_CCF_BRINGUP
+#if MT_CCF_DEBUG
 	pr_debug_ratelimited("[CCF] %s: %s, bit: %u\n", __func__,
 			__clk_get_name(hw->clk), cg->bit);
+#endif /* MT_CCF_DEBUG */
+#if MT_CCF_BRINGUP
 	return;
 #endif /* MT_CCF_BRINGUP */
 
@@ -124,9 +119,10 @@ static int cg_is_enabled(struct clk_hw *hw)
 	u32 mask;
 	u32 val;
 	int r;
-
-#if MT_CCF_BRINGUP
+#if MT_CCF_DEBUG
 	pr_debug_ratelimited("[CCF] %s: %s\n", __func__, __clk_get_name(hw->clk));
+#endif /* MT_CCF_DEBUG */
+#if MT_CCF_BRINGUP
 	return 1;
 #endif /* MT_CCF_BRINGUP */
 

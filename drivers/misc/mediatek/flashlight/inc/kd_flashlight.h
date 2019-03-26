@@ -18,9 +18,6 @@ typedef signed char MINT8;
 typedef signed short MINT16;
 typedef signed int MINT32;
 #endif
-typedef unsigned char u8;
-typedef unsigned short u16;
-
 
 enum {
 	e_Max_Strobe_Num_Per_Dev = 2,
@@ -211,5 +208,8 @@ bool mtk_is_host_mode(void);
 /* Boost4Flash */
 int mt6332_OpenBoost4Flash(void);
 int mt6332_CloseBoost4Flash(void);
+
+int flashlight_gpio_enable_high(void);
+int flashlight_gpio_enable_low(void);
 
 #endif

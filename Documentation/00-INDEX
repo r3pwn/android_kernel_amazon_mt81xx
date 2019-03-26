@@ -71,6 +71,8 @@ accounting/
 	- documentation on accounting and taskstats.
 acpi/
 	- info on ACPI-specific hooks in the kernel.
+amazon/
+        - description of Amazon drivers.
 aoe/
 	- description of AoE (ATA over Ethernet) along with config examples.
 applying-patches.txt

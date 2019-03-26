@@ -656,7 +656,7 @@ int ping_common_sendmsg(int family, struct msghdr *msg, size_t len,
 			void *user_icmph, size_t icmph_len) {
 	u8 type, code;
 
-	if (len > 0xFFFF)
+	if (len > 0xFFFF || len < icmph_len)
 		return -EMSGSIZE;
 
 	/*
@@ -984,7 +984,6 @@ void ping_rcv(struct sk_buff *skb)
 		/* sock_put(sk); */			
 		return;
 	}
-	pr_info("[mtk_net][ping_debug]no socket, dropping\n");
 
 	/* We're called from icmp_rcv(). kfree_skb() is done there. */
 }

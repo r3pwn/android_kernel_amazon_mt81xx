@@ -52,23 +52,6 @@ __weak void get_android_log_buffer(unsigned long *addr, unsigned long *size, uns
 {
 }
 
-__weak void get_disp_err_buffer(unsigned long *addr, unsigned long *size, unsigned long *start)
-{
-}
-
-
-__weak void get_disp_fence_buffer(unsigned long *addr, unsigned long *size, unsigned long *start)
-{
-}
-
-__weak void get_disp_dbg_buffer(unsigned long *addr, unsigned long *size, unsigned long *start)
-{
-}
-
-__weak void get_disp_dump_buffer(unsigned long *addr, unsigned long *size, unsigned long *start)
-{
-}
-
 __weak struct vm_struct *find_vm_area(const void *addr)
 {
 	return NULL;
@@ -407,7 +390,7 @@ void mrdump_mini_build_task_info(struct pt_regs *regs)
 {
 #define MAX_STACK_TRACE_DEPTH 32
 	unsigned long ipanic_stack_entries[MAX_STACK_TRACE_DEPTH];
-	char symbol[96];
+	char symbol[128];
 	int sz;
 	int off, plen;
 	struct stack_trace trace;
@@ -432,7 +415,7 @@ void mrdump_mini_build_task_info(struct pt_regs *regs)
 			break;
 		}
 		/* FIXME: Check overflow ? */
-		sz += snprintf(symbol + sz, 96 - sz, "[%s, %d]", tsk->comm, tsk->pid);
+		sz += snprintf(symbol + sz, 128 - sz, "[%s, %d]", tsk->comm, tsk->pid);
 		tsk = tsk->real_parent;
 	} while (tsk && (tsk->pid != 0) && (tsk->pid != 1));
 	if (strncmp(cur_proc->process_path, symbol, sz) == 0)
@@ -452,7 +435,7 @@ void mrdump_mini_build_task_info(struct pt_regs *regs)
 		off = strlen(cur_proc->backtrace);
 		plen = AEE_BACKTRACE_LENGTH - ALIGN(off, 8);
 		if (plen > 16) {
-			sz = snprintf(symbol, 96, "[<%p>] %pS\n",
+			sz = snprintf(symbol, 128, "[<%p>] %pS\n",
 				      (void *)ipanic_stack_entries[i],
 				      (void *)ipanic_stack_entries[i]);
 			if (ALIGN(sz, 8) - sz) {
@@ -521,18 +504,6 @@ static void mrdump_mini_build_elf_misc(void)
 	memset_io(&misc, 0, sizeof(struct mrdump_mini_elf_misc));
 	get_kernel_log_buffer(&misc.vaddr, &misc.size, &misc.start);
 	mrdump_mini_add_misc(misc.vaddr, misc.size, misc.start, "_KERNEL_LOG_");
-	memset_io(&misc, 0, sizeof(struct mrdump_mini_elf_misc));
-	get_disp_err_buffer(&misc.vaddr, &misc.size, &misc.start);
-	mrdump_mini_add_misc(misc.vaddr, misc.size, misc.start, "_DISP_ERR_");
-	memset_io(&misc, 0, sizeof(struct mrdump_mini_elf_misc));
-	get_disp_dump_buffer(&misc.vaddr, &misc.size, &misc.start);
-	mrdump_mini_add_misc(misc.vaddr, misc.size, misc.start, "_DISP_DUMP_");
-	memset_io(&misc, 0, sizeof(struct mrdump_mini_elf_misc));
-	get_disp_fence_buffer(&misc.vaddr, &misc.size, &misc.start);
-	mrdump_mini_add_misc(misc.vaddr, misc.size, misc.start, "_DISP_FENCE_");
-	memset_io(&misc, 0, sizeof(struct mrdump_mini_elf_misc));
-	get_disp_dbg_buffer(&misc.vaddr, &misc.size, &misc.start);
-	mrdump_mini_add_misc(misc.vaddr, misc.size, misc.start, "_DISP_DBG_");
 	for (i = 0; i < 4; i++) {
 		memset_io(&misc, 0, sizeof(struct mrdump_mini_elf_misc));
 		get_android_log_buffer(&misc.vaddr, &misc.size, &misc.start, i + 1);

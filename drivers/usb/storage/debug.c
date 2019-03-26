@@ -58,6 +58,11 @@ void usb_stor_show_command(const struct us_data *us, struct scsi_cmnd *srb)
 {
 	char *what = NULL;
 	int i;
+	/* limit debug mechanism to avoid printk too much */
+	static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 10);
+
+	if (!(__ratelimit(&ratelimit)))
+        	return 1;
 
 	switch (srb->cmnd[0]) {
 	case TEST_UNIT_READY: what = "TEST_UNIT_READY"; break;
@@ -181,13 +186,13 @@ void usb_stor_show_sense(const struct us_data *us,
 
 int usb_stor_dbg(const struct us_data *us, const char *fmt, ...)
 {
-	/* limit debug mechanism to avoid printk too much */
-	static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 10);
 	va_list args;
 	int r;
+	/* limit debug mechanism to avoid printk too much */
+	static DEFINE_RATELIMIT_STATE(ratelimit, 1 * HZ, 10);
 
 	if (!(__ratelimit(&ratelimit)))
-		return 1;
+        	return 1;
 
 	va_start(args, fmt);
 

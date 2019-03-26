@@ -40,7 +40,6 @@
 #include <mt_gpio.h>
 /*#include <mach/sync_write.h>
 #include "mach/ext_wd_drv.h"*/
-#include <mt-plat/charging.h>
 
 #define hal_rtc_xinfo(fmt, args...)		\
 	pr_notice(fmt, ##args)
@@ -53,6 +52,8 @@
 
 /* Causion, can only use this hardcode in MT6323*/
 #define GPIO_SRCLKEN_PIN (37 | 0x80000000)
+
+/*TODO: extern bool pmic_chrdet_status(void);*/
 
 /*
 	RTC_FGSOC = 0,
@@ -70,6 +71,7 @@
 	RTC_PWRON_LOGO,
 	RTC_32K_LESS,
 	RTC_LP_DET,
+	RTC_ENTER_KPOC,
 	RTC_SPAR_NUM
 
 */
@@ -101,7 +103,9 @@
  * RTC_SPAR0:
  *     bit 0 - 5 : SEC in power-on time
  *     bit 6	 : 32K less bit. True:with 32K, False:Without 32K
- *     bit 7 - 15: reserved bits
+ *     bit 7     : LP DET
+ *     bit 8     : ENTER KPOC
+ *     bit 9 - 15: reserved bits
  */
 
 u16 rtc_spare_reg[][3] = {
@@ -118,7 +122,10 @@ u16 rtc_spare_reg[][3] = {
 	{RTC_PDN2, 0x1, 7},
 	{RTC_PDN2, 0x1, 15},
 	{RTC_SPAR0, 0x1, 6},
-	{RTC_SPAR0, 0x1, 7}
+	{RTC_SPAR0, 0x1, 7},
+	{RTC_SPAR0, 0x1, 8},
+	{RTC_SPAR0, 0x1, 10},
+	{RTC_SPAR0, 0x1, 11}
 };
 
 void hal_rtc_set_abb_32k(u16 enable)
@@ -180,6 +187,126 @@ void hal_rtc_set_gpio_32k_status(u16 user, bool enable)
 	hal_rtc_xinfo("RTC_GPIO user %d enable = %d 32k (0x%x)\n", user, enable, pdn1);
 }
 
+u16 hal_rtc_get_register_status(const char * cmd)
+{
+	u16 spar0, al_hou, pdn1, con;
+
+	if (!strcmp(cmd, "XTAL")) {
+		/*RTC_SPAR0 bit 6        : 32K less bit. True:with 32K, False:Without 32K*/
+		spar0 = rtc_read(RTC_SPAR0);
+		if(spar0 & RTC_SPAR0_32K_LESS)
+			return 1;
+		else
+			return 0;
+	} else if (!strcmp(cmd, "LPD")) {
+		spar0 = rtc_read(RTC_SPAR0);
+		if(spar0 & RTC_SPAR0_LP_DET)
+			return 1;
+		else
+			return 0;
+	} else if (!strcmp(cmd, "FG")) {
+		//RTC_AL_HOU bit8~14
+		al_hou = rtc_read(RTC_AL_HOU);
+		al_hou = (al_hou & RTC_NEW_SPARE_FG_MASK) >> RTC_NEW_SPARE_FG_SHIFT;
+		return al_hou;
+	} else if (!strcmp(cmd, "GPIO")) {
+		pdn1 = rtc_read(RTC_PDN1);
+		con = rtc_read(RTC_CON);
+
+		hal_rtc_xinfo("RTC_GPIO 32k status(RTC_PDN1=0x%x)(RTC_CON=0x%x)\n",pdn1, con);
+
+		if(con & RTC_CON_F32KOB)
+			return 0;
+		else
+			return 1;
+	} else if (!strcmp(cmd, "LPRST")) {
+		spar0 = rtc_read(RTC_SPAR0);
+		hal_rtc_xinfo("LPRST status(RTC_SPAR0=0x%x\n", spar0);
+
+		if (spar0 & RTC_SPAR0_LONG_PRESS_RST)
+			return 1;
+		else
+			return 0;
+	} else if (!strcmp(cmd, "ENTER_KPOC")) {
+		spar0 = rtc_read(RTC_SPAR0);
+		hal_rtc_xinfo("ENTER_KPOC status(RTC_SPAR0=0x%x\n", spar0);
+
+		if (spar0 & RTC_SPAR0_ENTER_KPOC)
+			return 1;
+		else
+			return 0;
+	} else if (!strcmp(cmd, "REBOOT_REASON")) {
+		spar0 = rtc_read(RTC_SPAR0);
+		hal_rtc_xinfo("REBOOT_REASON status(RTC_SPAR0=0x%x)\n", spar0);
+
+		return (spar0 >> RTC_SPAR0_REBOOT_REASON_SHIFT)
+			& RTC_SPAR0_REBOOT_REASON_MASK;
+	}
+
+	return 0;
+}
+
+void hal_rtc_set_register_status(const char * cmd, u16 val)
+{
+#if 0
+	if (!strcmp(cmd, "FG")) {
+		hal_rtc_set_spare_fg_value(val);
+	} else if (!strcmp(cmd, "ABB")) {
+		hal_rtc_set_abb_32k(val);
+	}
+#ifndef CONFIG_MTK_PMIC_MT6397
+	else if (!strcmp(cmd, "AUTOBOOT")) {
+		hal_rtc_set_auto_boot(val);
+	}
+#endif
+#endif
+}
+
+
+void hal_rtc_mark_mode(const char *cmd)
+{
+	u16 pdn1, spar0;
+
+	if (!strcmp(cmd, "recv")) {
+		pdn1 = rtc_read(RTC_PDN1) & (~RTC_PDN1_RECOVERY_MASK);
+		rtc_write(RTC_PDN1, pdn1 | RTC_PDN1_FAC_RESET);
+	}
+	else if (!strcmp(cmd, "kpoc")) {
+		pdn1 = rtc_read(RTC_PDN1) & (~RTC_PDN1_KPOC);
+		rtc_write(RTC_PDN1, pdn1 | RTC_PDN1_KPOC);
+	}
+	else if (!strcmp(cmd, "fast")) {
+		pdn1 = rtc_read(RTC_PDN1) & (~RTC_PDN1_FAST_BOOT);
+		rtc_write(RTC_PDN1, pdn1 | RTC_PDN1_FAST_BOOT);
+	} else if (!strcmp(cmd, "enter_kpoc")) {
+		spar0 = rtc_read(RTC_SPAR0) & (~RTC_SPAR0_ENTER_KPOC);
+		rtc_write(RTC_SPAR0, spar0 | RTC_SPAR0_ENTER_KPOC);
+	} else if (!strcmp(cmd, "clear_lprst")) {
+		spar0 = rtc_read(RTC_SPAR0) & (~RTC_SPAR0_LONG_PRESS_RST);
+		rtc_write(RTC_SPAR0, spar0);
+	} else if (!strcmp(cmd, "enter_lprst")) {
+		spar0 = rtc_read(RTC_SPAR0) & (~RTC_SPAR0_LONG_PRESS_RST);
+		rtc_write(RTC_SPAR0, spar0 | RTC_SPAR0_LONG_PRESS_RST);
+	} else if (!strcmp(cmd, "enter_sw_lprst")) {
+		spar0 = rtc_read(RTC_SPAR0) & (~RTC_SPAR0_SW_LONG_PRESS_RST);
+		rtc_write(RTC_SPAR0, spar0 | RTC_SPAR0_SW_LONG_PRESS_RST);
+	} else if (!strncmp(cmd, "reboot", 6)) {
+		u16 spar0, reason;
+		spar0 = rtc_read(RTC_SPAR0) & RTC_SPAR0_CLEAR_REBOOT_REASON;
+		reason = (cmd[6] - '0') & RTC_SPAR0_REBOOT_REASON_MASK;
+		rtc_write(RTC_SPAR0, spar0
+				| (reason << RTC_SPAR0_REBOOT_REASON_SHIFT));
+#if 0
+	} else if (!strcmp(cmd, "rpmbp")) {
+		spar0 = rtc_read(RTC_SPAR0) & (~RTC_SPAR0_RPMB_PROGRAM_FLAG);
+		rtc_write(RTC_SPAR0, spar0 | RTC_SPAR0_RPMB_PROGRAM_FLAG);
+#endif
+	}
+
+	rtc_write_trigger();
+}
+
+
 void hal_rtc_bbpu_pwdn(void)
 {
 	u16 ret_val, con;
@@ -191,8 +318,9 @@ void hal_rtc_bbpu_pwdn(void)
 		rtc_write_trigger();
 	}
 	ret_val = hal_rtc_get_spare_register(RTC_32K_LESS);
-	if (!ret_val && pmic_chrdet_status() == KAL_FALSE) {
 #if 0
+	/*TODO if (!ret_val && pmic_chrdet_status() == false) {*/
+
 		/* 1.   Set SRCLKENAs GPIO GPIO as Output Mode, Output Low */
 		mt_set_gpio_dir(GPIO_SRCLKEN_PIN, GPIO_DIR_OUT);
 		mt_set_gpio_out(GPIO_SRCLKEN_PIN, GPIO_OUT_ZERO);
@@ -201,9 +329,9 @@ void hal_rtc_bbpu_pwdn(void)
 
 		/* 3.   Switch SRCLKENAs GPIO MUX function to GPIO Mode */
 		mt_set_gpio_mode(GPIO_SRCLKEN_PIN, GPIO_MODE_GPIO);
+	} else {
 #endif
-	} else
-		rtc_bbpu_pwrdown(true);
+	rtc_bbpu_pwrdown(true);
 }
 
 void hal_rtc_get_pwron_alarm(struct rtc_time *tm, struct rtc_wkalrm *alm)

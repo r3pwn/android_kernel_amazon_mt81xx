@@ -18,7 +18,10 @@
 #include "ion_fb_heap.h"
 #include "ion_priv.h"
 #include "mtk/ion_drv.h"
+#ifdef CONFIG_MTK_M4U
 #include <m4u.h>
+#endif
+#include "ion_sec_heap.h"
 
 typedef struct {
 	struct mutex lock;
@@ -47,7 +50,7 @@ static unsigned int high_order_gfp_flags = (GFP_HIGHUSER | __GFP_ZERO
 		| __GFP_NOWARN | __GFP_NORETRY | __GFP_NO_KSWAPD) & ~__GFP_WAIT;
 static unsigned int low_order_gfp_flags = (GFP_HIGHUSER | __GFP_ZERO
 		| __GFP_NOWARN);
-static const unsigned int orders[] = { 1, 0 };
+static const unsigned int orders[] = { 2, 0 };
 /* static const unsigned int orders[] = {8, 4, 0}; */
 static const int num_orders = ARRAY_SIZE(orders);
 static int order_to_index(unsigned int order)
@@ -273,12 +276,12 @@ void ion_mm_heap_free_bufferInfo(struct ion_buffer *buffer)
 
 	if (pBufferInfo) {
 		mutex_lock(&(pBufferInfo->lock));
+#ifdef CONFIG_MTK_M4U
 		if ((pBufferInfo->destroy_fn) && (pBufferInfo->MVA))
 			pBufferInfo->destroy_fn(buffer, pBufferInfo->MVA);
-
 		if ((pBufferInfo->eModuleID != -1) && (pBufferInfo->MVA))
 			m4u_dealloc_mva_sg(pBufferInfo->eModuleID, table, buffer->size, pBufferInfo->MVA);
-
+#endif
 		mutex_unlock(&(pBufferInfo->lock));
 		kfree(pBufferInfo);
 	}
@@ -350,7 +353,7 @@ static int ion_mm_heap_phys(struct ion_heap *heap, struct ion_buffer *buffer,
 		return -EFAULT; /* Buffer not configured. */
 	}
 	/* Allocate MVA */
-
+#ifdef CONFIG_MTK_M4U
 	mutex_lock(&(pBufferInfo->lock));
 	if (pBufferInfo->MVA == 0) {
 		int ret = m4u_alloc_mva_sg(pBufferInfo->eModuleID, buffer->sg_table,
@@ -367,7 +370,7 @@ static int ion_mm_heap_phys(struct ion_heap *heap, struct ion_buffer *buffer,
 	*(unsigned int *) addr = pBufferInfo->MVA; /* MVA address */
 	mutex_unlock(&(pBufferInfo->lock));
 	*len = buffer->size;
-
+#endif
 	return 0;
 }
 
@@ -542,7 +545,7 @@ int ion_mm_heap_for_each_pool(int (*fn)(int high, int order, int cache,
 	return 0;
 }
 
-/*static int write_mm_page_pool(int high, int order, int cache, size_t size)
+static int write_mm_page_pool(int high, int order, int cache, size_t size)
 {
 	if (cache)
 		IONMSG("%s order_%u in cached_pool = %zu total\n", high ? "high" : "low", order, size);
@@ -550,7 +553,7 @@ int ion_mm_heap_for_each_pool(int (*fn)(int high, int order, int cache,
 		IONMSG("%s order_%u in pool = %zu total\n", high ? "high" : "low", order, size);
 
 	return 0;
-}*/
+}
 
 static size_t ion_debug_mm_heap_total(struct ion_client *client, unsigned int id)
 {
@@ -635,6 +638,74 @@ void ion_mm_heap_memory_detail(void)
 	}
 }
 
+
+/* fosmod_fireos_crash_reporting begin */
+void lmk_add_to_buffer(const char *fmt, ...);
+
+void ion_mm_heap_memory_detail_lmk(void)
+{
+	struct ion_device *dev = g_ion_device;
+	/* struct ion_heap *heap = NULL; */
+	size_t total_size = 0;
+	size_t total_orphaned_size = 0;
+	struct rb_node *n;
+
+	lmk_add_to_buffer("%16.s(%16.s) %16.s %16.s %s\n",
+			"client", "dbg_name", "pid", "size", "address");
+	lmk_add_to_buffer("----------------------------------------------------\n");
+
+	if (!down_read_trylock(&dev->lock))
+		return;
+	for (n = rb_first(&dev->clients); n; n = rb_next(n)) {
+		struct ion_client
+		*client = rb_entry(n, struct ion_client, node);
+		size_t size = ion_debug_mm_heap_total(client, ION_HEAP_TYPE_MULTIMEDIA);
+
+		if (!size)
+			continue;
+		if (client->task) {
+			char task_comm[TASK_COMM_LEN];
+
+			get_task_comm(task_comm, client->task);
+			lmk_add_to_buffer("%16.s(%16.s) %16u %16zu 0x%p\n",
+					task_comm, client->dbg_name, client->pid, size, client);
+		} else {
+			lmk_add_to_buffer("%16.s(%16.s) %16u %16zu 0x%p\n",
+					client->name, "from_kernel", client->pid, size, client);
+		}
+	}
+	up_read(&dev->lock);
+	lmk_add_to_buffer("----------------------------------------------------\n");
+	lmk_add_to_buffer("orphaned allocations (info is from last known client):" "\n");
+
+	if (mutex_trylock(&dev->buffer_lock)) {
+		for (n = rb_first(&dev->buffers); n; n = rb_next(n)) {
+			struct ion_buffer
+			*buffer = rb_entry(n, struct ion_buffer, node);
+
+			if ((1 << buffer->heap->id) & ION_HEAP_MULTIMEDIA_MASK) {
+				/* heap = buffer->heap; */
+				total_size += buffer->size;
+				if (!buffer->handle_count) {
+					lmk_add_to_buffer("%16.s(%16.s) %16u %16zu %d %d\n", buffer->task_comm,
+							"orphan", buffer->pid, buffer->size, buffer->kmap_cnt,
+							atomic_read(&buffer->ref.refcount));
+					total_orphaned_size += buffer->size;
+				}
+			}
+		}
+		mutex_unlock(&dev->buffer_lock);
+
+		lmk_add_to_buffer("----------------------------------------------------\n");
+		lmk_add_to_buffer("%16.s %16zu\n", "total orphaned", total_orphaned_size);
+		lmk_add_to_buffer("%16.s %16zu\n", "total ", total_size);
+		lmk_add_to_buffer("----------------------------------------------------\n");
+	} else {
+		lmk_add_to_buffer("ion mm heap total memory: %16zu\n", mm_heap_total_memory);
+	}
+}
+/* fosmod_fireos_crash_reporting end */
+
 size_t ion_mm_heap_total_memory(void)
 {
 	return mm_heap_total_memory;
@@ -652,7 +723,7 @@ struct ion_heap *ion_mm_heap_create(struct ion_platform_heap *unused)
 	}
 	heap->heap.ops = &system_heap_ops;
 	heap->heap.type = ION_HEAP_TYPE_MULTIMEDIA;
-	heap->heap.flags = ION_HEAP_FLAG_DEFER_FREE;
+	/* heap->heap.flags = ION_HEAP_FLAG_DEFER_FREE; */
 	heap->pools = kcalloc(num_orders, sizeof(struct ion_page_pool *), GFP_KERNEL);
 	if (!heap->pools)
 		goto err_alloc_pools;
@@ -745,6 +816,7 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
 	long ret = 0;
 	/* char dbgstr[256]; */
 	unsigned long ret_copy;
+	unsigned int  buffer_sec = 0;
 
 	ION_FUNC_ENTER;
 	if (from_kernel)
@@ -818,7 +890,30 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
 					}
 				}
 				mutex_unlock(&(pBufferInfo->lock));
-			} else {
+			} else if ((int) buffer->heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+                                    ion_sec_buffer_info *pBufferInfo = buffer->priv_virt;
+                    
+                                    buffer_sec = pBufferInfo->security;
+                                    if (pBufferInfo->MVA == 0) {
+                                        pBufferInfo->eModuleID = Param.config_buffer_param.eModuleID;
+                                        pBufferInfo->security = Param.config_buffer_param.security;
+                                        pBufferInfo->coherent = Param.config_buffer_param.coherent;
+                                    } else {
+                                        if (pBufferInfo->security
+                                                != Param.config_buffer_param.security
+                                                || pBufferInfo->coherent
+                                                        != Param.config_buffer_param.coherent) {
+                                            IONMSG("[ion_heap]: Warning. config buffer param error from %c heap\n",
+                                                    buffer->heap->type);
+                                            IONMSG(" sec:%d(%d), coherent: %d(%d)\n",
+                                                    pBufferInfo->security,
+                                                    Param.config_buffer_param.security,
+                                                    pBufferInfo->coherent,
+                                                    Param.config_buffer_param.coherent);
+                                            ret = -ION_ERROR_CONFIG_LOCKED;
+                                        }
+                                    }
+                                } else {
 				IONMSG("[ion_heap]: Error. Cannot configure buffer that is not from %c heap.\n",
 						buffer->heap->type);
 				ret = 0;
@@ -857,6 +952,11 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
 				mutex_lock(&(pBufferInfo->lock));
 				ion_mm_copy_dbg_info(&(Param.buf_debug_info_param), &(pBufferInfo->dbg_info));
 				mutex_unlock(&(pBufferInfo->lock));
+			} else if ((int) buffer->heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+				ion_sec_buffer_info *pBufferInfo = buffer->priv_virt;
+
+				buffer_sec = pBufferInfo->security;
+				ion_mm_copy_dbg_info(&(Param.buf_debug_info_param), &(pBufferInfo->dbg_info));
 			} else {
 				IONMSG("[ion_heap]: Error. Cannot set dbg buffer that is not from %c heap.\n",
 						buffer->heap->type);
@@ -896,6 +996,11 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
 				mutex_lock(&(pBufferInfo->lock));
 				ion_mm_copy_dbg_info(&(pBufferInfo->dbg_info), &(Param.buf_debug_info_param));
 				mutex_unlock(&(pBufferInfo->lock));
+			}else if ((int) buffer->heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+				ion_sec_buffer_info *pBufferInfo = buffer->priv_virt;
+
+				buffer_sec = pBufferInfo->security;
+				ion_mm_copy_dbg_info(&(pBufferInfo->dbg_info), &(Param.buf_debug_info_param));
 			} else {
 				IONMSG("[ion_heap]: Error. Cannot get dbg buffer that is not from %c heap.\n",
 						buffer->heap->type);
@@ -936,6 +1041,11 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
 				mutex_lock(&(pBufferInfo->lock));
 				ion_mm_copy_sf_buf_info(&(Param.sf_buf_info_param), &(pBufferInfo->sf_buf_info));
 				mutex_unlock(&(pBufferInfo->lock));
+			} else if ((int) buffer->heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+				ion_sec_buffer_info *pBufferInfo = buffer->priv_virt;
+
+				buffer_sec = pBufferInfo->security;
+				ion_mm_copy_sf_buf_info(&(Param.sf_buf_info_param), &(pBufferInfo->sf_buf_info));
 			} else {
 				IONMSG("[ion_heap]: Error. Cannot set sf_buf_info buffer that is not from %c heap.\n",
 						buffer->heap->type);
@@ -975,6 +1085,11 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg
 				mutex_lock(&(pBufferInfo->lock));
 				ion_mm_copy_sf_buf_info(&(pBufferInfo->sf_buf_info), &(Param.sf_buf_info_param));
 				mutex_unlock(&(pBufferInfo->lock));
+			} else if ((int) buffer->heap->type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+				ion_sec_buffer_info *pBufferInfo = buffer->priv_virt;
+
+				buffer_sec = pBufferInfo->security;
+				ion_mm_copy_sf_buf_info(&(pBufferInfo->sf_buf_info), &(Param.sf_buf_info_param));
 			} else {
 				IONMSG("[ion_heap]: Error. Cannot get sf_buf_info buffer that is not from %c heap.\n",
 						buffer->heap->type);

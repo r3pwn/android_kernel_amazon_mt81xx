@@ -503,9 +503,7 @@ struct mem_size_stats {
 	u64 pss;
 #ifdef CONFIG_SWAP
 	u64 pswap;
-#endif
-#ifdef CONFIG_ZNDSWAP
-	u64 pswap_zndswap;
+	u64 swap_pss;
 #endif
 };
 
@@ -535,9 +533,23 @@ static void smaps_pte_entry(pte_t ptent, unsigned long addr,
 #ifdef CONFIG_SWAP
 			swp_entry_t entry;
 			struct swap_info_struct *p;
+#ifndef CONFIG_TRANSPARENT_HUGEPAGE
+			int mapcount;
+#endif
 #endif /* CONFIG_SWAP*/
 			mss->swap += ptent_size;
 #ifdef CONFIG_SWAP
+#ifndef CONFIG_TRANSPARENT_HUGEPAGE
+			mapcount = swp_swapcount(swpent);
+			if (mapcount >= 2) {
+				u64 pss_delta = (u64)PAGE_SIZE << PSS_SHIFT;
+
+				do_div(pss_delta, mapcount);
+				mss->swap_pss += pss_delta;
+			} else {
+				mss->swap_pss += (u64)PAGE_SIZE << PSS_SHIFT;
+			}
+#endif
 			entry = pte_to_swp_entry(ptent);
 			if (non_swap_entry(entry))
 				return;
@@ -548,15 +560,7 @@ static void smaps_pte_entry(pte_t ptent, unsigned long addr,
 				if (swapcount == 0)
 					swapcount = 1;
 
-#ifdef CONFIG_ZNDSWAP
-				/* It indicates 2ndswap ONLY */
-				if (swp_type(entry) == 1UL)
-					mss->pswap_zndswap += (ptent_size << PSS_SHIFT) / swapcount;
-				else
-					mss->pswap += (ptent_size << PSS_SHIFT) / swapcount;
-#else
 				mss->pswap += (ptent_size << PSS_SHIFT) / swapcount;
-#endif
 				swap_info_unlock(p);
 			}
 #endif /* CONFIG_SWAP*/
@@ -718,9 +722,7 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 		   "Swap:           %8lu kB\n"
 #ifdef CONFIG_SWAP
 		   "PSwap:          %8lu kB\n"
-#endif
-#ifdef CONFIG_ZNDSWAP
-		   "PSwap_zndswap:  %8lu kB\n"
+		   "SwapPss:        %8lu kB\n"
 #endif
 		   "KernelPageSize: %8lu kB\n"
 		   "MMUPageSize:    %8lu kB\n"
@@ -738,9 +740,7 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 		   mss.swap >> 10,
 #ifdef CONFIG_SWAP
 		   (unsigned long)(mss.pswap >> (10 + PSS_SHIFT)),
-#endif
-#ifdef CONFIG_ZNDSWAP
-		   (unsigned long)(mss.pswap_zndswap >> (10 + PSS_SHIFT)),
+		   (unsigned long)(mss.swap_pss >> (10 + PSS_SHIFT)),
 #endif
 		   vma_kernel_pagesize(vma) >> 10,
 		   vma_mmu_pagesize(vma) >> 10,

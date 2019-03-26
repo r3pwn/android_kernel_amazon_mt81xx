@@ -119,6 +119,8 @@ static void thermal_zone_trip_update(struct thermal_zone_device *tz, int trip)
 	struct thermal_instance *instance;
 	bool throttle = false;
 	int old_target;
+	char data[3][25];
+	char *envp[] = { data[0], data[1], data[2], NULL };
 
 	if (trip == THERMAL_TRIPS_NONE) {
 		trip_temp = tz->forced_passive;
@@ -151,6 +153,13 @@ static void thermal_zone_trip_update(struct thermal_zone_device *tz, int trip)
 
 		if (old_target == instance->target)
 			continue;
+
+		snprintf(data[0], sizeof(data[0]), "TRIP=%d", trip);
+		snprintf(data[1], sizeof(data[1]), "THERMAL_STATE=%ld",
+			 instance->target);
+		snprintf(data[2], sizeof(data[2]), "CDEV_TYPE=%s",
+			 instance->cdev->type);
+		kobject_uevent_env(&tz->device.kobj, KOBJ_CHANGE, envp);
 
 		/* Activate a passive thermal instance */
 		if (old_target == THERMAL_NO_TARGET &&

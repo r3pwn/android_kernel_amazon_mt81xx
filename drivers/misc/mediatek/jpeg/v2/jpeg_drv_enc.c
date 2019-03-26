@@ -1,5 +1,4 @@
 #include <linux/kernel.h>
-/* #include <linux/xlog.h> */
 
 #include "jpeg_drv_reg.h"
 #include "jpeg_drv_common.h"
@@ -23,7 +22,9 @@
 
 #define JPEG_ENC_DEBUG_INFO0_GMC_IDLE_MASK      (1 << 13)
 
-
+#define JPEG_MSG pr_debug
+#define JPEG_WRN pr_debug
+#define JPEG_ERR pr_debug
 
 kal_uint32 _jpeg_enc_int_status = 0;
 

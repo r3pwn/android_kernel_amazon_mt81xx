@@ -1,7 +1,6 @@
 #include <mach/mt_typedefs.h>
 #include <asm/io.h>
 #include <linux/kernel.h>
-#include <linux/xlog.h>
 
 
 #include "jpeg_drv_6589_reg.h"

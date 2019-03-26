@@ -53,7 +53,17 @@ static int lp55xx_detect_device(struct lp55xx_chip *chip)
 	struct lp55xx_device_config *cfg = chip->cfg;
 	u8 addr = cfg->enable.addr;
 	u8 val  = cfg->enable.val;
+	u8 buf;
 	int ret;
+
+	ret = lp55xx_read(chip, addr, &buf);
+	if (ret)
+		return ret;
+
+	if (buf == val)
+		return 0;
+
+	val |= buf;
 
 	ret = lp55xx_write(chip, addr, val);
 	if (ret)
@@ -61,11 +71,11 @@ static int lp55xx_detect_device(struct lp55xx_chip *chip)
 
 	usleep_range(1000, 2000);
 
-	ret = lp55xx_read(chip, addr, &val);
+	ret = lp55xx_read(chip, addr, &buf);
 	if (ret)
 		return ret;
 
-	if (val != cfg->enable.val)
+	if (val != buf)
 		return -ENODEV;
 
 	return 0;
@@ -139,7 +149,7 @@ static void lp55xx_set_brightness(struct led_classdev *cdev,
 {
 	struct lp55xx_led *led = cdev_to_lp55xx_led(cdev);
 
-	led->brightness = (u8)brightness;
+	led->brightness_new = (u8)brightness;
 	schedule_work(&led->brightness_work);
 }
 
@@ -275,8 +285,17 @@ static ssize_t lp55xx_store_engine_select(struct device *dev,
 
 static inline void lp55xx_run_engine(struct lp55xx_chip *chip, bool start)
 {
-	if (chip->cfg->run_engine)
+	if (chip->cfg->run_engine) {
 		chip->cfg->run_engine(chip, start);
+		chip->cache_inv = 0xFF; /* Invalidate brightness cache */
+	}
+}
+
+static inline bool lp55xx_is_engine_active(struct lp55xx_chip *chip)
+{
+	if (chip->cfg->is_engine_active)
+		return chip->cfg->is_engine_active(chip);
+	return false;
 }
 
 static ssize_t lp55xx_store_engine_run(struct device *dev,
@@ -397,6 +416,22 @@ int lp55xx_init_device(struct lp55xx_chip *chip)
 	if (!pdata || !cfg)
 		return -EINVAL;
 
+	ret = lp55xx_detect_device(chip);
+	if (ret) {
+		dev_err(dev, "detect failed, trying reset: %d\n", ret);
+		goto reset_dev;
+	}
+
+	if (!lp55xx_is_engine_active(chip)) {
+		dev_err(dev, "no active pattern, resetting device\n");
+		goto reset_dev;
+	}
+
+	dev_dbg(dev, "lp55xx already configured, skipping reset\n");
+
+	return 0;
+
+reset_dev:
 	if (gpio_is_valid(pdata->enable_gpio)) {
 		ret = devm_gpio_request_one(dev, pdata->enable_gpio,
 					    GPIOF_DIR_OUT, "lp5523_enable");
@@ -585,8 +620,8 @@ int lp55xx_of_populate_pdata(struct device *dev, struct device_node *np)
 
 	pdata->enable_gpio = of_get_named_gpio(np, "enable-gpio", 0);
 
-	/* LP8501 specific */
-	of_property_read_u8(np, "pwr-sel", (u8 *)&pdata->pwr_sel);
+	/* LP5523 specific */
+	of_property_read_u8(np, "gpo_enable", (u8 *)&pdata->gpo_enable);
 
 	dev->platform_data = pdata;
 

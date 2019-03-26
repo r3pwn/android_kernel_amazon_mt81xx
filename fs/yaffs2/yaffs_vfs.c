@@ -2189,7 +2189,7 @@ static struct super_block *yaffs_internal_read_super(int yaffs_version,
 		return NULL;
 	}
 	/* Check it's NAND */
-	if (!(mtd->type == MTD_NANDFLASH || mtd->type == MTD_MLCNANDFLASH)) {
+	if (mtd->type != MTD_NANDFLASH) {
 		yaffs_trace(YAFFS_TRACE_ALWAYS,
 			"MTD device is not NAND it's type %d",
 			mtd->type);

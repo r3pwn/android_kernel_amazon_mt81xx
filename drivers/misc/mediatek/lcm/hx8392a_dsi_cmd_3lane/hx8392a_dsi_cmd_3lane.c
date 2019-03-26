@@ -95,7 +95,7 @@ static struct LCM_setting_table lcm_initialization_setting[] = {
 	{ 0xB0, 2, {0x01, 0x08} },
 
 	/* set mipi 3 lane */
-	{ 0xBA, 17, {0x52, 0x83, 0x00, 0xD6,
+	{ 0xBA, 17, {0x12, 0x83, 0x00, 0xD6,
 		    0xC5, 0x10, 0x09, 0xFF,
 		    0x0F, 0x27, 0x03, 0x21,
 		    0x27, 0x25, 0x20, 0x00,
@@ -346,9 +346,26 @@ static void lcm_suspend(void)
 
 static void lcm_resume(void)
 {
-	MDELAY(10);
-	lcm_init();
-	MDELAY(10);
+	int resume_count = 5;
+	char buffer[4];
+	int recv_cnt;
+
+	do {
+		MDELAY(10);
+		lcm_init();
+		MDELAY(10);
+		/* atomic_set(&ESDCheck_byCPU, 1); */
+		recv_cnt = read_reg_v2(0x0A, buffer, 1);
+		/* atomic_set(&ESDCheck_byCPU, 0); */
+		if (buffer[0] != 0x0)
+			return;
+		pr_debug("DDP/LCM resume fail, resume again\n");
+		resume_count--;
+	} while (resume_count >= 0);
+
+	/* try over 'resume_count' times, assert fail */
+	ASSERT(0);
+
 }
 
 

@@ -257,6 +257,26 @@ static unsigned int get_cpu_frequency(unsigned int cpu, unsigned long level)
 }
 
 /**
+ * cpufreq_cooling_get_frequency - for a give cpu cooling state
+ * return the cpu freq.
+ * @cpu: cpu for which frequency is fetched.
+ * @level: cooling level
+ *
+ * This function matches cooling level with frequency. Based on a cooling level
+ * of frequency, equals cooling state of cpu cooling device, it will return
+ * the corresponding frequency.
+ *	e.g level=0 --> 1st MAX FREQ, level=1 ---> 2nd MAX FREQ, .... etc
+ *
+ * Return: 0 on error, the corresponding frequency otherwise.
+ */
+unsigned int cpufreq_cooling_get_frequency(unsigned int cpu,
+					   unsigned long level)
+{
+	return get_cpu_frequency(cpu, level);
+}
+EXPORT_SYMBOL_GPL(cpufreq_cooling_get_frequency);
+
+/**
  * cpufreq_apply_cooling - function to apply frequency clipping.
  * @cpufreq_device: cpufreq_cooling_device pointer containing frequency
  *	clipping data.

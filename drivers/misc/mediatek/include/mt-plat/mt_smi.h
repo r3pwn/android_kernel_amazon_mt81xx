@@ -28,7 +28,6 @@ typedef struct {
 int mau_config(MTK_MAU_CONFIG *pMauConf);
 int mau_dump_status(int larb);
 
-
 /* --------------------------------------------------------------------------- */
 typedef enum {
 	SMI_BWC_SCEN_NORMAL,
@@ -45,6 +44,8 @@ typedef enum {
 	SMI_BWC_SCEN_FORCE_MMDVFS,
 	SMI_BWC_SCEN_HDMI,
 	SMI_BWC_SCEN_HDMI4K,
+	SMI_BWC_SCEN_VPMJC,
+	SMI_BWC_SCEN_N3D,
 	SMI_BWC_SCEN_CNT
 } MTK_SMI_BWC_SCEN;
 

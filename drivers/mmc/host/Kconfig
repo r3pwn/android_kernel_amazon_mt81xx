@@ -810,3 +810,7 @@ config MMC_SUNXI
 	help
 	  This selects support for the SD/MMC Host Controller on
 	  Allwinner sunxi SoCs.
+
+config MMC_TUNE_WINDOW_LOGS
+	tristate "MMC Tuning window logs"
+	default n

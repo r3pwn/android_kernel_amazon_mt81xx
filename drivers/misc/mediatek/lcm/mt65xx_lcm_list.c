@@ -19,15 +19,21 @@
 #define LCD_DEBUG(fmt, args...)  pr_notice("[KERNEL/LCM]"fmt, ##args)
 #endif
 
+
 LCM_DRIVER *lcm_driver_list[] = {
-#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
-	&lcm_common_drv,
-#else
 #if defined(OTM1284A_HD720_DSI_VDO_TM)
 	&otm1284a_hd720_dsi_vdo_tm_lcm_drv,
 #endif
 #if defined(OTM1285A_HD720_DSI_VDO_TM)
 	&otm1285a_hd720_dsi_vdo_tm_lcm_drv,
+#endif
+
+#if defined(NT35595_FHD_DSI_CMD_TRULY_8163)
+	&nt35595_fhd_dsi_cmd_truly_8163_lcm_drv,
+#endif
+
+#if defined(NT35523_WXGA_DSI_VDO_8163)
+	&nt35523_wxga_dsi_vdo_8163_lcm_drv,
 #endif
 
 #if defined(EK79007_WSVGALNL_DSI_VDO)
@@ -858,10 +864,6 @@ LCM_DRIVER *lcm_driver_list[] = {
 	&otm1906b_fhd_dsi_cmd_jdi_tps65132_lcm_drv,
 #endif
 
-#if defined(OTM1906B_FHD_DSI_CMD_JDI_TPS65132_MT6797)
-	&otm1906b_fhd_dsi_cmd_jdi_tps65132_mt6797_lcm_drv,
-#endif
-
 #if defined(HX8394C_WXGA_DSI_VDO)
 	&hx8394c_wxga_dsi_vdo_lcm_drv,
 #endif
@@ -909,39 +911,47 @@ LCM_DRIVER *lcm_driver_list[] = {
 	&r69429_wqxga_dsi_vdo_lcm_drv,
 #endif
 
-#if defined(HX8394C_WXGA_DSI_VDO)
-	&hx8394c_wxga_dsi_vdo_lcm_drv,
+#if defined(NT35521_WXGA_DSI_VDO_HH060IA)
+	&nt35521_wxga_dsi_vdo_hh060ia_lcm_drv,
 #endif
 
-#if defined(NT35595_TRULY_FHD_DSI_VDO)
-	&nt35595_truly_fhd_dsi_vdo_lcm_drv,
+#if defined(NT35521_WXGA_DSI_VDO_abc123)
+	&nt35521_wxga_dsi_vdo_abc123_lcm_drv,
 #endif
 
+#if defined(NT35521_WXGA_DSI_VDO_DOUGLAS)
+	&nt35521_wxga_dsi_vdo_douglas_lcm_drv,
+#endif
+
+#if defined(NT35521_WXGA_DSI_VDO_KARNAK)
+	&nt35521_wxga_dsi_vdo_karnak_kd_lcm_drv,
+#endif
+
+#if defined(JD936X_WXGA_DSI_VDO_KARNAK)
+	&jd9366_wxga_dsi_vdo_karnak_fiti_tpv_lcm_drv,
+	&jd9367_wxga_dsi_vdo_karnak_fiti_kd_lcm_drv,
+	&jd9367_wxga_dsi_vdo_karnak_fiti_inx_lcm_drv,
+	&jd9366_wxga_dsi_vdo_karnak_fiti_txd_lcm_drv,
+	&jd9366_wxga_dsi_vdo_karnak_fiti_starry_lcm_drv,
+#endif
+
+#if defined(OTM7290B_WSVGA_DSI_VDO_abc123)
+	&otm7290b_wsvga_dsi_vdo_abc123_auo_starry_lcm_drv,
+	&otm7290b_wsvga_dsi_vdo_abc123_auo_kd_lcm_drv,
+	&otm7290b_wsvga_dsi_vdo_abc123_inx_inx_lcm_drv,
+#endif
+
+#if defined(HX8379C_DSI_WVGA_VDO_rbc123)
+	&hx8379c_wvga_dsi_vdo_lcm_drv,
 #endif
 };
-
-#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
-unsigned char lcm_name_list[][128] = {
-#if defined(HX8392A_DSI_CMD)
-	"hx8392a_dsi_cmd",
-#endif
-
-#if defined(HX8392A_DSI_VDO)
-	"hx8392a_vdo_cmd",
-#endif
-
-#if defined(OTM9608_QHD_DSI_CMD)
-	"otm9608_qhd_dsi_cmd",
-#endif
-};
-#endif
 
 #define LCM_COMPILE_ASSERT(condition) LCM_COMPILE_ASSERT_X(condition, __LINE__)
 #define LCM_COMPILE_ASSERT_X(condition, line) LCM_COMPILE_ASSERT_XX(condition, line)
 #define LCM_COMPILE_ASSERT_XX(condition, line) char assertion_failed_at_line_##line[(condition) ? 1 : -1]
 
 unsigned int lcm_count = sizeof(lcm_driver_list) / sizeof(LCM_DRIVER *);
-LCM_COMPILE_ASSERT(0 != sizeof(lcm_driver_list) / sizeof(LCM_DRIVER *));
+/*LCM_COMPILE_ASSERT(0 != sizeof(lcm_driver_list) / sizeof(LCM_DRIVER *));*/
 #if defined(NT35520_HD720_DSI_CMD_TM) | defined(NT35520_HD720_DSI_CMD_BOE) | \
 	defined(NT35521_HD720_DSI_VDO_BOE) | defined(NT35521_HD720_DSI_VIDEO_TM)
 static unsigned char lcd_id_pins_value = 0xFF;

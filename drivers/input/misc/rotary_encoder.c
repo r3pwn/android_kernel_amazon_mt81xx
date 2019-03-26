@@ -226,8 +226,11 @@ static int rotary_encoder_probe(struct platform_device *pdev)
 	input->dev.parent = dev;
 
 	if (pdata->relative_axis) {
-		input->evbit[0] = BIT_MASK(EV_REL);
-		input->relbit[0] = BIT_MASK(pdata->axis);
+		/* DEE-40256: Map volume ring type to Button Mouse for
+		 * abc123 CSM framework. */
+		input->evbit[0] = BIT_MASK(EV_REL) | BIT_MASK(EV_KEY);
+		input->relbit[0] = BIT_MASK(pdata->axis) | BIT_MASK(REL_Y);
+		input->keybit[BIT_WORD(BTN_MOUSE)] = BIT_MASK(BTN_MOUSE);
 	} else {
 		input->evbit[0] = BIT_MASK(EV_ABS);
 		input_set_abs_params(encoder->input,

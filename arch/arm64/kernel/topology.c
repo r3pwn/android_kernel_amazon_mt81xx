@@ -19,15 +19,29 @@
 #include <linux/nodemask.h>
 #include <linux/of.h>
 #include <linux/sched.h>
-#include <linux/sched.h>
-#include <linux/sched_energy.h>
+#include <linux/slab.h>
 
 #include <asm/cputype.h>
 #include <asm/topology.h>
 
+/*
+ * cpu capacity scale management
+ */
+
+/*
+ * cpu capacity table
+ * This per cpu data structure describes the relative capacity of each core.
+ * On a heteregenous system, cores don't have the same computation capacity
+ * and we reflect that difference in the cpu_capacity field so the scheduler
+ * can take this difference into account during load balance. A per cpu
+ * structure is preferred because each CPU updates its own cpu_capacity field
+ * during the load balance except for idle cores. One idle core is selected
+ * to run the rebalance_domains for all idle cores and the cpu_capacity can be
+ * updated during this sequence.
+ */
 static DEFINE_PER_CPU(unsigned long, cpu_scale);
 
-unsigned long arm_arch_scale_cpu_capacity(struct sched_domain *sd, int cpu)
+unsigned long arch_scale_cpu_capacity(struct sched_domain *sd, int cpu)
 {
 	return per_cpu(cpu_scale, cpu);
 }
@@ -198,7 +212,7 @@ static const struct cpu_efficiency table_efficiency[] = {
 static unsigned long *__cpu_capacity;
 #define cpu_capacity(cpu)	__cpu_capacity[cpu]
 
-static unsigned long max_cpu_perf, min_cpu_perf;
+static unsigned long max_cpu_perf;
 
 static int __init parse_dt_topology(void)
 {
@@ -240,13 +254,60 @@ out:
 }
 
 /*
+ * Look for a customed capacity of a CPU in the cpu_capacity table during the
+ * boot. The update of all CPUs is in O(n^2) for heteregeneous system but the
+ * function returns directly for SMP systems or if there is no complete set
+ * of cpu efficiency, clock frequency data for each cpu.
+ */
+static void update_cpu_capacity(unsigned int cpu)
+{
+	unsigned long capacity = cpu_capacity(cpu);
+
+	if (!capacity || !max_cpu_perf) {
+		cpu_capacity(cpu) = 0;
+		return;
+	}
+
+	capacity *= SCHED_CAPACITY_SCALE;
+	capacity /= max_cpu_perf;
+
+	set_capacity_scale(cpu, capacity);
+
+	pr_info("CPU%u: update cpu_capacity %lu\n",
+		cpu, arch_scale_cpu_capacity(NULL, cpu));
+}
+
+/*
  * Scheduler load-tracking scale-invariance
  *
  * Provides the scheduler with a scale-invariance correction factor that
- * compensates for frequency scaling (arch_scale_freq_capacity()). The scaling
- * factor is updated in smp.c
+ * compensates for frequency scaling.
  */
-unsigned long arm_arch_scale_freq_capacity(struct sched_domain *sd, int cpu)
+
+static DEFINE_PER_CPU(atomic_long_t, cpu_freq_capacity);
+static DEFINE_PER_CPU(atomic_long_t, cpu_max_freq);
+
+/* cpufreq callback function setting current cpu frequency */
+void arch_scale_set_curr_freq(int cpu, unsigned long freq)
+{
+	unsigned long max = atomic_long_read(&per_cpu(cpu_max_freq, cpu));
+	unsigned long curr;
+
+	if (!max)
+		return;
+
+	curr = (freq * SCHED_CAPACITY_SCALE) / max;
+
+	atomic_long_set(&per_cpu(cpu_freq_capacity, cpu), curr);
+}
+
+/* cpufreq callback function setting max cpu frequency */
+void arch_scale_set_max_freq(int cpu, unsigned long freq)
+{
+	atomic_long_set(&per_cpu(cpu_max_freq, cpu), freq);
+}
+
+unsigned long arch_scale_freq_capacity(struct sched_domain *sd, int cpu)
 {
 	unsigned long curr = atomic_long_read(&per_cpu(cpu_freq_capacity, cpu));
 
@@ -264,9 +325,6 @@ static void __init parse_dt_cpu_capacity(void)
 
 	__cpu_capacity = kcalloc(nr_cpu_ids, sizeof(*__cpu_capacity),
 				 GFP_NOWAIT);
-
-	min_cpu_perf = ULONG_MAX;
-	max_cpu_perf = 0;
 
 	for_each_possible_cpu(cpu) {
 		const u32 *rate;
@@ -297,14 +355,11 @@ static void __init parse_dt_cpu_capacity(void)
 		cpu_perf = ((be32_to_cpup(rate)) >> 20) * cpu_eff->efficiency;
 		cpu_capacity(cpu) = cpu_perf;
 		max_cpu_perf = max(max_cpu_perf, cpu_perf);
-		min_cpu_perf = min(min_cpu_perf, cpu_perf);
 		i++;
 	}
 
-	if (i < num_possible_cpus()) {
+	if (i < num_possible_cpus())
 		max_cpu_perf = 0;
-		min_cpu_perf = 0;
-	}
 }
 
 /*
@@ -313,64 +368,9 @@ static void __init parse_dt_cpu_capacity(void)
 struct cpu_topology cpu_topology[NR_CPUS];
 EXPORT_SYMBOL_GPL(cpu_topology);
 
-/* sd energy functions */
-static inline const struct sched_group_energy *cpu_cluster_energy(int cpu)
-{
-	struct sched_group_energy *sge = sge_array[cpu][SD_LEVEL1];
-
-	if (!sge) {
-		pr_warn("Invalid sched_group_energy for Cluster%d\n", cpu);
-		return NULL;
-	}
-
-	return sge;
-}
-
-static inline const struct sched_group_energy *cpu_core_energy(int cpu)
-{
-	struct sched_group_energy *sge = sge_array[cpu][SD_LEVEL0];
-
-	if (!sge) {
-		pr_warn("Invalid sched_group_energy for CPU%d\n", cpu);
-		return NULL;
-	}
-
-	return sge;
-}
-
 const struct cpumask *cpu_coregroup_mask(int cpu)
 {
 	return &cpu_topology[cpu].core_sibling;
-}
-
-static inline int cpu_corepower_flags(void)
-{
-	return SD_SHARE_PKG_RESOURCES  | SD_SHARE_POWERDOMAIN | \
-	       SD_SHARE_CAP_STATES;
-}
-
-static struct sched_domain_topology_level arm64_topology[] = {
-#ifdef CONFIG_SCHED_MC
-	{ cpu_coregroup_mask, cpu_corepower_flags, cpu_core_energy, SD_INIT_NAME(MC) },
-#endif
-	{ cpu_cpu_mask, 0, cpu_cluster_energy, SD_INIT_NAME(DIE) },
-	{ NULL, },
-};
-
-static void update_cpu_capacity(unsigned int cpu)
-{
-	unsigned long capacity;
-
-	if (!cpu_core_energy(cpu)) {
-		capacity = SCHED_CAPACITY_SCALE;
-	} else {
-		int max_cap_idx = cpu_core_energy(cpu)->nr_cap_states - 1;
-		capacity = cpu_core_energy(cpu)->cap_states[max_cap_idx].cap;
-	}
-
-	set_capacity_scale(cpu, capacity);
-	pr_info("CPU%d: update cpu_capacity %lu\n",
-		cpu, arm_arch_scale_cpu_capacity(NULL, cpu));
 }
 
 static void update_siblings_masks(unsigned int cpuid)
@@ -424,13 +424,18 @@ void store_cpu_topology(unsigned int cpuid)
 		cpuid_topo->core_id    = MPIDR_AFFINITY_LEVEL(mpidr, 0);
 		cpuid_topo->cluster_id = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 	}
+#ifndef CONFIG_SCHED_HMP
+	cpuid_topo->partno = read_cpuid_part_number();
+#endif
 
 	pr_debug("CPU%u: cluster %d core %d thread %d mpidr %#016llx\n",
 		 cpuid, cpuid_topo->cluster_id, cpuid_topo->core_id,
 		 cpuid_topo->thread_id, mpidr);
 
 topology_populated:
+#ifdef CONFIG_SCHED_HMP
 	cpuid_topo->partno = read_cpuid_part_number();
+#endif
 	update_siblings_masks(cpuid);
 	update_cpu_capacity(cpuid);
 }
@@ -450,18 +455,16 @@ static void __init reset_cpu_topology(void)
 		cpumask_set_cpu(cpu, &cpu_topo->core_sibling);
 		cpumask_clear(&cpu_topo->thread_sibling);
 		cpumask_set_cpu(cpu, &cpu_topo->thread_sibling);
+
+		set_capacity_scale(cpu, SCHED_CAPACITY_SCALE);
 	}
 }
 
-static void __init reset_cpu_capacity(void)
-{
-	unsigned int cpu;
 
-	for_each_possible_cpu(cpu)
-		set_capacity_scale(cpu, SCHED_CAPACITY_SCALE);
-}
-
-void __init init_cpu_topology(void)
+/*
+ * return 1 while every cpu is recognizible
+ */
+void build_cpu_topology(void)
 {
 	reset_cpu_topology();
 
@@ -471,14 +474,30 @@ void __init init_cpu_topology(void)
 	 */
 	if (parse_dt_topology())
 		reset_cpu_topology();
-	else
-		set_sched_topology(arm64_topology);
-
-	reset_cpu_capacity();
 
 	parse_dt_cpu_capacity();
-	init_sched_energy_costs();
+
 }
+
+#ifndef CONFIG_MTK_CPU_TOPOLOGY
+/*
+ * init_cpu_topology is called at boot when only one cpu is running
+ * which prevent simultaneous write access to cpu_topology array
+ */
+void __init init_cpu_topology(void)
+{
+	build_cpu_topology();
+}
+#else
+void __init init_cpu_topology(void)
+{
+}
+
+void arch_build_cpu_topology_domain(void)
+{
+	build_cpu_topology();
+}
+#endif
 
 /*
  * Extras of CPU & Cluster functions
@@ -501,16 +520,24 @@ int arch_cpu_is_little(unsigned int cpu)
 	return !arch_cpu_is_big(cpu);
 }
 
-int arch_is_smp(void)
+int arch_is_big_little(void)
 {
-	static int __arch_smp = -1;
+	static int __arch_big_little = -1;
+	unsigned int cpu;
+	int has_big = 0, has_little = 0;
 
-	if (__arch_smp != -1)
-		return __arch_smp;
+	if (__arch_big_little != -1)
+		return __arch_big_little;
 
-	__arch_smp = (max_cpu_perf != min_cpu_perf) ? 0 : 1;
+	for_each_possible_cpu(cpu) {
+		if (arch_cpu_is_big(cpu))
+			has_big = 1;
+		else
+			has_little = 1;
+	}
+	__arch_big_little = (has_big && has_little) ? 1 : 0;
 
-	return __arch_smp;
+	return __arch_big_little;
 }
 
 int arch_get_nr_clusters(void)
@@ -519,8 +546,9 @@ int arch_get_nr_clusters(void)
 	int max_id = 0;
 	unsigned int cpu;
 
-	if (__arch_nr_clusters != -1)
+	if (__arch_nr_clusters != -1) {
 		return __arch_nr_clusters;
+	}
 
 	/* assume socket id is monotonic increasing without gap. */
 	for_each_possible_cpu(cpu) {
@@ -558,8 +586,61 @@ void arch_get_cluster_cpus(struct cpumask *cpus, int cluster_id)
 	}
 }
 
-int arch_better_capacity(unsigned int cpu)
+#ifdef CONFIG_SCHED_HMP
+void __init arch_get_fast_and_slow_cpus(struct cpumask *fast,
+			struct cpumask *slow)
 {
-	BUG_ON(cpu >= num_possible_cpus());
-	return cpu_capacity(cpu) > min_cpu_perf;
+	struct device_node *cn = NULL;
+	int cpu;
+
+	cpumask_clear(fast);
+	cpumask_clear(slow);
+
+	for_each_possible_cpu(cpu) {
+		if (arch_cpu_is_little(cpu))
+			cpumask_set_cpu(cpu, slow);
+		else
+			cpumask_set_cpu(cpu, fast);
+	}
+	if (!cpumask_empty(fast) && !cpumask_empty(slow))
+		return;
+
+	/*
+	 * We didn't find both big and little cores so let's call all cores
+	 * fast as this will keep the system running, with all cores being
+	 * treated equal.
+	 */
+	cpumask_setall(fast);
+	cpumask_clear(slow);
 }
+
+struct cpumask hmp_fast_cpu_mask;
+struct cpumask hmp_slow_cpu_mask;
+
+void __init arch_get_hmp_domains(struct list_head *hmp_domains_list)
+{
+	struct hmp_domain *domain;
+
+	arch_get_fast_and_slow_cpus(&hmp_fast_cpu_mask, &hmp_slow_cpu_mask);
+
+	/*
+	 * Initialize hmp_domains
+	 * Must be ordered with respect to compute capacity.
+	 * Fastest domain at head of list.
+	 */
+	if (!cpumask_empty(&hmp_slow_cpu_mask)) {
+		domain = (struct hmp_domain *)
+			kmalloc(sizeof(struct hmp_domain), GFP_KERNEL);
+		cpumask_copy(&domain->possible_cpus, &hmp_slow_cpu_mask);
+		cpumask_and(&domain->cpus, cpu_online_mask, &domain->possible_cpus);
+		list_add(&domain->hmp_domains, hmp_domains_list);
+	}
+	domain = (struct hmp_domain *)
+		kmalloc(sizeof(struct hmp_domain), GFP_KERNEL);
+	cpumask_copy(&domain->possible_cpus, &hmp_fast_cpu_mask);
+	cpumask_and(&domain->cpus, cpu_online_mask, &domain->possible_cpus);
+	list_add(&domain->hmp_domains, hmp_domains_list);
+}
+#else
+void __init arch_get_hmp_domains(struct list_head *hmp_domains_list) {}
+#endif /* CONFIG_SCHED_HMP */

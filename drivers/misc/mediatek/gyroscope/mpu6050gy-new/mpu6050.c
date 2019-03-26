@@ -337,7 +337,6 @@ static int MPU6050_ReadCalibration(struct i2c_client *client, int dat[MPU6050_AX
 static int MPU6050_WriteCalibration(struct i2c_client *client, int dat[MPU6050_AXES_NUM])
 {
 	struct mpu6050_i2c_data *obj = i2c_get_clientdata(client);
-	int err = 0;
 	int cali[MPU6050_AXES_NUM];
 
 
@@ -360,8 +359,6 @@ static int MPU6050_WriteCalibration(struct i2c_client *client, int dat[MPU6050_A
 		}
 #endif
 		return MPU6050_write_rel_calibration(obj, cali);
-
-	return err;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -652,7 +649,7 @@ static int MPU6050_FIFOConfig(struct i2c_client *client, u8 clk)
 /*----------------------------------------------------------------------------*/
 static int MPU6050_ReadFifoData(struct i2c_client *client, s16 *data, int *datalen)
 {
-	struct mpu6050_i2c_data *obj = i2c_get_clientdata(client);
+	struct mpu6050_i2c_data *obj;
 	u8 buf[MPU6050_DATA_LEN] = {0};
 	s16 tmp1[MPU6050_AXES_NUM] = {0};
 	s16 tmp2[MPU6050_AXES_NUM] = {0};
@@ -665,6 +662,8 @@ static int MPU6050_ReadFifoData(struct i2c_client *client, s16 *data, int *datal
 
 	if (NULL == client)
 		return -EINVAL;
+
+	obj = i2c_get_clientdata(client);
 
 	/* stop putting data in FIFO */
 	MPU6050_ReadStart(client, false);
@@ -1715,7 +1714,7 @@ static void mpu6050_late_resume(struct early_suspend *h)
 /*----------------------------------------------------------------------------*/
 static int mpu6050_i2c_detect(struct i2c_client *client, struct i2c_board_info *info)
 {
-	strcpy(info->type, MPU6050_DEV_NAME);
+	strncpy(info->type, MPU6050_DEV_NAME, I2C_NAME_SIZE);
 	return 0;
 }
 

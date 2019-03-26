@@ -176,15 +176,7 @@ static struct mt_battery_charging_custom_data default_charging_data = {
 	.jeita_temp_pos_45_to_pos_60_cc2topoff_threshold = 4050,
 	.jeita_temp_pos_10_to_pos_45_cc2topoff_threshold = 4050,
 	.jeita_temp_pos_0_to_pos_10_cc2topoff_threshold = 4050,
-	.jeita_temp_neg_10_to_pos_0_cc2topoff_threshold = 3850,
-
-	/* For Pump Express Plus */
-	.ta_start_battery_soc = 1,
-	.ta_stop_battery_soc = 95,
-	.ta_ac_9v_input_current = CHARGE_CURRENT_1500_00_MA,
-	.ta_ac_7v_input_current = CHARGE_CURRENT_1500_00_MA,
-	.ta_ac_charging_current = CHARGE_CURRENT_2200_00_MA,
-	.ta_9v_support = 1,
+	.jeita_temp_neg_10_to_pos_0_cc2topoff_threshold = 3850
 };
 
 /* ////////////////////////////////////////////////////////////////////////////// */
@@ -316,12 +308,14 @@ bool upmu_is_chr_det(void)
 		return false;
 
 	if (mt_usb_is_device()) {
-		battery_log(BAT_LOG_FULL, "[upmu_is_chr_det] Charger exist and USB is not host\n");
+		battery_log(BAT_LOG_FULL,
+			    "[upmu_is_chr_det] Charger exist and USB is not host\n");
 
 		return true;
 	}
 
-	battery_log(BAT_LOG_FULL, "[upmu_is_chr_det] Charger exist but USB is host\n");
+	battery_log(BAT_LOG_FULL,
+		    "[upmu_is_chr_det] Charger exist but USB is host\n");
 	return false;
 
 #endif
@@ -539,11 +533,7 @@ static struct battery_data battery_main = {
 	.BAT_HEALTH = POWER_SUPPLY_HEALTH_GOOD,
 	.BAT_PRESENT = 1,
 	.BAT_TECHNOLOGY = POWER_SUPPLY_TECHNOLOGY_LION,
-#if defined(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT)
-	.BAT_CAPACITY = -1,
-#else
 	.BAT_CAPACITY = 50,
-#endif
 	.BAT_VOLTAGE_NOW = 0,
 	.BAT_VOLTAGE_AVG = 0,
 	.BAT_TEMP = 0,
@@ -1355,7 +1345,7 @@ static ssize_t store_Charging_CallState(struct device *dev, struct device_attrib
 	ret = kstrtoint(buf, 0, &call_state);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	g_call_state = (call_state ? true : false);
@@ -1379,7 +1369,7 @@ static ssize_t store_Charging_Enable(struct device *dev, struct device_attribute
 	ret = kstrtoint(buf, 0, &charging_enable);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	if (charging_enable == 1)
@@ -1392,42 +1382,6 @@ static ssize_t store_Charging_Enable(struct device *dev, struct device_attribute
 }
 
 static DEVICE_ATTR(Charging_Enable, 0664, show_Charging_Enable, store_Charging_Enable);
-
-#if defined(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT)
-static ssize_t show_Pump_Express(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	int icount = 20;	/* max debouncing time 20 * 0.2 sec */
-
-	if (true == ta_check_chr_type && STANDARD_CHARGER == BMT_status.charger_type &&
-	    BMT_status.SOC >= p_bat_charging_data->ta_start_battery_soc &&
-	    BMT_status.SOC < p_bat_charging_data->ta_stop_battery_soc) {
-		battery_log(BAT_LOG_CRTI, "[%s]Wait for PE detection\n", __func__);
-		do {
-			icount--;
-			msleep(200);
-		} while (icount && ta_check_chr_type);
-	}
-
-	battery_log(BAT_LOG_CRTI, "Pump express = %d\n", is_ta_connect);
-	return sprintf(buf, "%u\n", is_ta_connect);
-}
-
-static ssize_t store_Pump_Express(struct device *dev, struct device_attribute *attr,
-				  const char *buf, size_t size)
-{
-	int rv;
-	u32 value;
-
-	rv = kstrtouint(buf, 0, &value);
-	if (rv != 1)
-		return -EINVAL;
-	is_ta_connect = (value != 0) ? true : false;
-	battery_log(BAT_LOG_CRTI, "Pump express= %d\n", is_ta_connect);
-	return size;
-}
-
-static DEVICE_ATTR(Pump_Express, 0664, show_Pump_Express, store_Pump_Express);
-#endif
 
 static ssize_t show_Custom_Charging_Current(struct device *dev, struct device_attribute *attr,
 					    char *buf)
@@ -1444,7 +1398,7 @@ static ssize_t store_Custom_Charging_Current(struct device *dev, struct device_a
 	ret = kstrtoint(buf, 0, &cur);
 	if (ret) {
 		pr_err("wrong format!\n");
-		return size;
+		return 0;
 	}
 
 	g_custom_charging_current = cur;
@@ -2445,8 +2399,7 @@ static void mt_battery_charger_detect_check(void)
 #ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
 		if (g_platform_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
 		    || g_platform_boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
-			pr_warn
-			    ("Unplug Charger/USB In Kernel Power Off Charging Mode!  Shutdown OS!\r\n");
+			pr_warn("Unplug Charger/USB In Kernel Power Off Charging Mode!  Shutdown OS!\r\n");
 			orderly_poweroff(true);
 		}
 #endif
@@ -2481,7 +2434,7 @@ static void do_chrdet_int_task(void)
 {
 	if (g_bat_init_flag == true) {
 		if (upmu_is_chr_det() == true) {
-			pr_debug("[do_chrdet_int_task] charger exist!\n");
+			pr_info("[do_chrdet_int_task] charger exist!\n");
 
 			if (!BMT_status.charger_exist)
 				wake_lock(&battery_suspend_lock);
@@ -2494,12 +2447,12 @@ static void do_chrdet_int_task(void)
 				    "[do_chrdet_int_task] call mt_usb_connect() in EVB\n");
 #endif
 		} else {
-			pr_debug("[do_chrdet_int_task] charger NOT exist!\n");
+			pr_info("[do_chrdet_int_task] charger NOT exist!\n");
 			if (BMT_status.charger_exist) {
 				if (g_platform_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT)
 					wake_lock(&battery_suspend_lock);
 				else
-					wake_lock_timeout(&battery_suspend_lock, HZ / 2);
+					wake_lock_timeout(&battery_suspend_lock, HZ/2);
 			}
 			BMT_status.charger_exist = false;
 			BMT_status.charger_type = CHARGER_UNKNOWN;
@@ -2517,12 +2470,6 @@ static void do_chrdet_int_task(void)
 			mt_usb_disconnect();
 			battery_log(BAT_LOG_CRTI,
 				    "[do_chrdet_int_task] call mt_usb_disconnect() in EVB\n");
-#endif
-
-#if defined(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT)
-			is_ta_connect = false;
-			ta_check_chr_type = true;
-			ta_cable_out_occur = true;
 #endif
 		}
 
@@ -2542,7 +2489,7 @@ static void do_chrdet_int_task(void)
 
 irqreturn_t ops_chrdet_int_handler(int irq, void *dev_id)
 {
-	pr_debug("[Power/Battery][chrdet_bat_int_handler]....\n");
+	pr_info("[Power/Battery][chrdet_bat_int_handler]....\n");
 
 	do_chrdet_int_task();
 
@@ -2681,7 +2628,7 @@ static int bat_setup_charger_locked(void)
 
 		enable_irq(g_bat.irq);
 
-		pr_warn("%s: charger setup done\n", __func__);
+		pr_notice("%s: charger setup done\n", __func__);
 	}
 
 	return ret;
@@ -2941,7 +2888,7 @@ static int battery_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int ret = 0;
 
-	pr_debug("******** battery driver probe!! ********\n");
+	pr_info("******** battery driver probe!! ********\n");
 
 	/* AP:
 	 * Use PMIC events as interrupts through kernel IRQ API.
@@ -2988,9 +2935,6 @@ static int battery_probe(struct platform_device *pdev)
 	battery_log(BAT_LOG_CRTI, "[BAT_probe] adc_cali prepare : done !!\n ");
 
 	wake_lock_init(&battery_suspend_lock, WAKE_LOCK_SUSPEND, "battery suspend wakelock");
-#if defined(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT)
-	wake_lock_init(&TA_charger_suspend_lock, WAKE_LOCK_SUSPEND, "TA charger suspend wakelock");
-#endif
 
 	/* Integrate with Android Battery Service */
 	ret = power_supply_register(dev, &ac_main.psy);
@@ -3060,9 +3004,6 @@ static int battery_probe(struct platform_device *pdev)
 		ret_device_file = device_create_file(dev, &dev_attr_Charging_CallState);
 		ret_device_file = device_create_file(dev, &dev_attr_Charging_Enable);
 		ret_device_file = device_create_file(dev, &dev_attr_Custom_Charging_Current);
-#if defined(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT)
-		ret_device_file = device_create_file(dev, &dev_attr_Pump_Express);
-#endif
 	}
 
 	/* battery_meter_initial();      //move to mt_battery_GetBatteryData() to decrease booting time */
@@ -3118,7 +3059,7 @@ static void battery_shutdown(struct platform_device *pdev)
 #if !defined(CONFIG_POWER_EXT)
 	int count = 0;
 #endif
-	pr_debug("******** battery driver shutdown!! ********\n");
+	pr_info("******** battery driver shutdown!! ********\n");
 
 	disable_irq(g_bat.irq);
 
@@ -3190,7 +3131,7 @@ static ssize_t store_BatteryNotify(struct device *dev, struct device_attribute *
 		ret = kstrtouint(buf, 0, &reg_BatteryNotifyCode);
 		if (ret) {
 			pr_err("wrong format!\n");
-			return size;
+			return 0;
 		}
 		g_BatteryNotifyCode = reg_BatteryNotifyCode;
 		battery_log(BAT_LOG_CRTI, "[Battery] store code : %x\n", g_BatteryNotifyCode);
@@ -3215,7 +3156,7 @@ static ssize_t store_BN_TestMode(struct device *dev, struct device_attribute *at
 		ret = kstrtouint(buf, 0, &reg_BN_TestMode);
 		if (ret) {
 			pr_err("wrong format!\n");
-			return size;
+			return 0;
 		}
 		g_BN_TestMode = reg_BN_TestMode;
 		battery_log(BAT_LOG_CRTI, "[Battery] store g_BN_TestMode : %x\n", g_BN_TestMode);
@@ -3277,7 +3218,7 @@ static ssize_t battery_cmd_write(struct file *file, const char *buffer, size_t c
 	}
 
 	battery_log(BAT_LOG_CRTI,
-		    "  bad argument, echo [bat_tt_enable] [bat_thr_test_mode] [bat_thr_test_value] > battery_cmd\n");
+			    "  bad argument, echo [bat_tt_enable] [bat_thr_test_mode] [bat_thr_test_value] > battery_cmd\n");
 
 	return -EINVAL;
 }

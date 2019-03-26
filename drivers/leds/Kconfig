@@ -477,6 +477,13 @@ config LEDS_MENF21BMC
 	  This driver can also be built as a module. If so the module
 	  will be called leds-menf21bmc.
 
+config LEDS_LP855X
+	tristate "LED support for the TI LP855X Backlight Driver"
+	depends on LEDS_CLASS
+	default n
+	help
+	  This option enables support for the TI LP855X Backlight Driver .
+
 comment "LED driver for blink(1) USB RGB LED is under Special HID drivers (HID_THINGM)"
 
 config LEDS_BLINKM
@@ -504,6 +511,13 @@ config LEDS_VERSATILE
 	help
 	  This option enabled support for the LEDs on the ARM Versatile
 	  and RealView boards. Say Y to enabled these.
+
+
+config LEDS_IS31FL3236
+	bool "LED Support for IS31Fl3236 LED driver chip"
+	depends on LEDS_CLASS && I2C
+	help
+		Driver for ISSI IS31FL3236
 
 comment "LED Triggers"
 source "drivers/leds/trigger/Kconfig"

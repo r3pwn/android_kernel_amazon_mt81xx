@@ -88,7 +88,7 @@ static void __inet_twsk_kill(struct inet_timewait_sock *tw,
 	spin_unlock(&bhead->lock);
 
 	BUG_ON(refcnt >= atomic_read(&tw->tw_refcnt));
-	atomic_sub(refcnt, &tw->tw_refcnt);
+		atomic_sub(refcnt, &tw->tw_refcnt);
 }
 
 void inet_twsk_free(struct inet_timewait_sock *tw)

@@ -3,11 +3,10 @@
 
 #include <lcm_drv.h>
 
-#if defined(MTK_LCM_DEVICE_TREE_SUPPORT)
-extern LCM_DRIVER lcm_common_drv;
-#else
 extern LCM_DRIVER otm1282a_hd720_dsi_vdo_60hz_lcm_drv;
 extern LCM_DRIVER otm1282a_hd720_dsi_vdo_lcm_drv;
+extern LCM_DRIVER nt35595_fhd_dsi_cmd_truly_8163_lcm_drv;
+extern LCM_DRIVER nt35523_wxga_dsi_vdo_8163_lcm_drv;
 extern LCM_DRIVER vvx10f008b00_wuxga_dsi_vdo_lcm_drv;
 extern LCM_DRIVER r63319_wqhd_dsi_vdo_truly_lcm_drv;
 extern LCM_DRIVER nt35598_wqhd_dsi_vdo_truly_lcm_drv;
@@ -212,7 +211,6 @@ extern LCM_DRIVER otm1906a_fhd_dsi_cmd_auto_lcm_drv;
 extern LCM_DRIVER clap070wp03xg_lvds_8163_lcm_drv;
 extern LCM_DRIVER nt35523_wxga_dsi_vdo_boe_lcm_drv;
 extern LCM_DRIVER otm1906b_fhd_dsi_cmd_jdi_tps65132_lcm_drv;
-extern LCM_DRIVER otm1906b_fhd_dsi_cmd_jdi_tps65132_mt6797_lcm_drv;
 extern LCM_DRIVER s6e3fa2_fhd1080_dsi_vdo_lcm_drv;
 extern LCM_DRIVER nt35523_wsvga_dsi_vdo_boe_lcm_drv;
 extern LCM_DRIVER ek79023_dsi_wsvga_vdo_lcm_drv;
@@ -229,12 +227,25 @@ extern LCM_DRIVER nt35510_dsi_cmd_lcm_drv;
 extern LCM_DRIVER rm69032_dsi_cmd_lcm_drv;
 extern LCM_DRIVER st7789h2_dbi_lcm_drv;
 extern LCM_DRIVER ek79007_wsvgalnl_dsi_vdo_lcm_drv;
+
 extern LCM_DRIVER cm_n070ice_dsi_vdo_mt8173_lcm_drv;
 extern LCM_DRIVER nt35595_fhd_dsi_cmd_truly_nt50358_extern_lcm_drv;
 extern LCM_DRIVER r69429_wqxga_dsi_vdo_lcm_drv;
-extern LCM_DRIVER hx8394c_wxga_dsi_vdo_lcm_drv;
-extern LCM_DRIVER nt35595_truly_fhd_dsi_vdo_lcm_drv;
-#endif
+extern LCM_DRIVER nt35521_wxga_dsi_vdo_hh060ia_lcm_drv;
+extern LCM_DRIVER nt35521_wxga_dsi_vdo_abc123_lcm_drv;
+extern LCM_DRIVER nt35521_wxga_dsi_vdo_douglas_lcm_drv;
+extern LCM_DRIVER nt35521_wxga_dsi_vdo_karnak_kd_lcm_drv;
+extern LCM_DRIVER jd9366_wxga_dsi_vdo_karnak_fiti_tpv_lcm_drv;
+extern LCM_DRIVER jd9367_wxga_dsi_vdo_karnak_fiti_kd_lcm_drv;
+extern LCM_DRIVER jd9367_wxga_dsi_vdo_karnak_fiti_inx_lcm_drv;
+extern LCM_DRIVER jd9366_wxga_dsi_vdo_karnak_fiti_txd_lcm_drv;
+extern LCM_DRIVER jd9366_wxga_dsi_vdo_karnak_fiti_starry_lcm_drv;
+extern LCM_DRIVER hx8379c_wvga_dsi_vdo_lcm_drv;
+/*Add for abc123 lcd begin*/
+extern LCM_DRIVER otm7290b_wsvga_dsi_vdo_abc123_auo_starry_lcm_drv;
+extern LCM_DRIVER otm7290b_wsvga_dsi_vdo_abc123_auo_kd_lcm_drv;
+extern LCM_DRIVER otm7290b_wsvga_dsi_vdo_abc123_inx_inx_lcm_drv;
+/*Add for abc123 lcd end*/
 
 #ifdef BUILD_LK
 extern void mdelay(unsigned long msec);

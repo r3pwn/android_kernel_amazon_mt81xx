@@ -39,37 +39,26 @@ bool cmdq_dev_device_clock_is_enable(struct clk *clk_module);
 
 struct device *cmdq_dev_get(void);
 /* interrupt index */
-uint32_t cmdq_dev_get_irq_id(void);
-uint32_t cmdq_dev_get_irq_secure_id(void);
+const uint32_t cmdq_dev_get_irq_id(void);
+const uint32_t cmdq_dev_get_irq_secure_id(void);
 /* GCE clock */
 void cmdq_dev_enable_gce_clock(bool enable);
 bool cmdq_dev_gce_clock_is_enable(void);
 /* virtual address */
-long cmdq_dev_get_module_base_VA_GCE(void);
-long cmdq_dev_get_module_base_VA_MMSYS_CONFIG(void);
-long cmdq_dev_alloc_module_base_VA_by_name(const char *name);
+const long cmdq_dev_get_module_base_VA_GCE(void);
+const long cmdq_dev_get_module_base_VA_MMSYS_CONFIG(void);
+const long cmdq_dev_alloc_module_base_VA_by_name(const char *name);
 /* Other modules information */
 void cmdq_dev_free_module_base_VA(const long VA);
-long cmdq_dev_get_APXGPT2_count(void);
+const long cmdq_dev_get_APXGPT2_count(void);
 /* physical address */
 void cmdq_dev_get_module_PA(const char *name, int index, long *startPA, long *endPA);
-long cmdq_dev_get_module_base_PA_GCE(void);
+const long cmdq_dev_get_module_base_PA_GCE(void);
 /* GCE event */
 void cmdq_dev_init_event_table(struct device_node *node);
 void cmdq_dev_test_dts_correctness(void);
 /* device initialization / deinitialization */
 void cmdq_dev_init(struct platform_device *pDevice);
 void cmdq_dev_deinit(void);
-
-typedef struct cmdq_dts_setting {
-	uint32_t prefetch_thread_count;
-	uint32_t prefetch_size[CMDQ_MAX_THREAD_COUNT];
-} cmdq_dts_setting;
-
-/* callback when read resource from device tree */
-typedef void(*CMDQ_DEV_INIT_RESOURCE_CB) (uint32_t engineFlag, CMDQ_EVENT_ENUM resourceEvent);
-
-void cmdq_dev_get_dts_setting(cmdq_dts_setting *dts_setting);
-void cmdq_dev_init_resource(CMDQ_DEV_INIT_RESOURCE_CB init_cb);
 
 #endif				/* __CMDQ_DEVICE_H__ */

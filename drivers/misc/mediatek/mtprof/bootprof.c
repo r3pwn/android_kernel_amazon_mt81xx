@@ -5,8 +5,10 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <asm/uaccess.h>
+#include <linux/printk.h>
 
 #include "internal.h"
+#include "mt_cputime.h"
 
 #define BOOT_STR_SIZE 128
 #ifdef CONFIG_MT_ENG_BUILD
@@ -38,6 +40,10 @@ void log_boot(char *str)
 		return;
 	ts = sched_clock();
 	pr_err("BOOTPROF:%10Ld.%06ld:%s\n", nsec_high(ts), nsec_low(ts), str);
+	if (strncmp("BOOT_Animation:START", str, 20) == 0)
+		mt_cputime_switch(1);
+	if (strncmp("BOOT_Animation:END", str, 17) == 0)
+		mt_cputime_switch(0);
 	if (boot_log_count >= BOOT_LOG_NUM) {
 		pr_err("[BOOTPROF] not enuough bootprof buffer\n");
 		return;
@@ -52,13 +58,13 @@ void log_boot(char *str)
 #ifdef CONFIG_MT_PRINTK_UART_CONSOLE
 static void bootup_finish(void)
 {
-	/* mt_disable_uart(); */
-	/* printk_too_much_enable = 1; */
+	mt_disable_uart();
+	set_logtoomuch_enable(1);
 }
 #else
 static void bootup_finish(void)
 {
-	/* printk_too_much_enable = 1; */
+	set_logtoomuch_enable(1);
 }
 #endif
 /* extern void (*set_intact_mode)(void); */

@@ -985,8 +985,11 @@ int cfg80211_disconnect(struct cfg80211_registered_device *rdev,
 		err = cfg80211_sme_disconnect(wdev, reason);
 	else if (!rdev->ops->disconnect)
 		cfg80211_mlme_down(rdev, dev);
-	else if (wdev->current_bss)
+	else if (wdev->current_bss) {
 		err = rdev_disconnect(rdev, dev, reason);
+		/* 20170512: frog, generate locally disconnect event. */
+		__cfg80211_disconnected(dev, NULL, 0, 0, false);
+	}
 
 	return err;
 }

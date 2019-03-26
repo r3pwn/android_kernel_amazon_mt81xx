@@ -35,8 +35,8 @@
 #endif
 
 /* for collecting ion total memory usage*/
-#ifdef CONFIG_MTK_ION
-#include <mtk/ion_drv.h>
+#ifdef CONFIG_ION_MTK
+#include <linux/ion_drv.h>
 #endif
 
 #include "mlog_internal.h"
@@ -383,7 +383,7 @@ static void mlog_meminfo(void)
 	/* MLOG_PRINTK("active: %lu, inactive: %lu\n", active, inactive); */
 	shmem = P2K(global_page_state(NR_SHMEM));
 
-#ifdef CONFIG_MTK_ION
+#ifdef CONFIG_ION_MTK
 	ion = B2K((unsigned long)ion_mm_heap_total_memory());
 #endif
 
@@ -414,14 +414,13 @@ static void mlog_vmstat(void)
 
 		v[PSWPIN] += this->event[PSWPIN];
 		v[PSWPOUT] += this->event[PSWPOUT];
-		v[PGFMFAULT] += this->event[PGFMFAULT];
 	}
 
 	spin_lock_bh(&mlogbuf_lock);
 	mlog_emit_32(v[PSWPIN]);
 	mlog_emit_32(v[PSWPOUT]);
-	mlog_emit_32(v[PGFMFAULT]);
-
+	/* TODO: porting PGANFAULT PGFMFAULT to kernel-3.18 */
+	mlog_emit_32(0);
 	mlog_emit_32(0);
 	spin_unlock_bh(&mlogbuf_lock);
 }
@@ -434,8 +433,8 @@ void mlog_buddyinfo(void)
 	struct zone *node_zones;
 	unsigned int order;
 	int zone_nr = 0;
-	unsigned long normal_nr_free[MAX_ORDER] = {0};
-	unsigned long high_nr_free[MAX_ORDER] = {0};
+	unsigned long normal_nr_free[MAX_ORDER];
+	unsigned long high_nr_free[MAX_ORDER];
 
 	for_each_online_node(i) {
 		pg_data_t *pgdat = NODE_DATA(i);
@@ -724,7 +723,7 @@ int mlog_doread(char __user *buf, size_t len)
 			v = '\n';
 
 		/* MLOG_PRINTK("[mlog] %d: %s\n", strfmt_idx, strfmt_list[strfmt_idx]); */
-		size = snprintf(mlog_str, MLOG_STR_LEN, strfmt_list[strfmt_idx++], v);
+		size = sprintf(mlog_str, strfmt_list[strfmt_idx++], v);
 
 		if (strfmt_idx >= strfmt_len)
 			strfmt_idx = strfmt_proc;
@@ -754,7 +753,7 @@ static void mlog_timer_handler(unsigned long data)
 {
 	mlog(MLOG_TRIGGER_TIMER);
 
-	mod_timer(&mlog_timer, round_jiffies(jiffies + timer_intval));
+	mod_timer(&mlog_timer, jiffies + timer_intval);
 }
 
 static void mlog_init_logger(void)

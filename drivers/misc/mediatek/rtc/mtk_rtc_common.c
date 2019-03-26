@@ -70,7 +70,8 @@
 #endif
 /* #include <linux/printk.h> */
 #include <mt_reboot.h>
-#include <mt-plat/charging.h>
+#include <mt-plat/battery_common.h>
+#include "../include/mt-plat/mt8163/include/mach/mt_rtc_hw.h"
 
 #define RTC_NAME	"mt-rtc"
 #define RTC_RELPWR_WHEN_XRST	1	/* BBPU = 0 when xreset_rstb goes low */
@@ -239,6 +240,57 @@ bool crystal_exist_status(void)
 }
 EXPORT_SYMBOL(crystal_exist_status);
 
+static unsigned long rtc_lock_flags;
+void rtc_acquire_lock(void)
+{
+	spin_lock_irqsave(&rtc_lock, rtc_lock_flags);
+}
+EXPORT_SYMBOL(rtc_acquire_lock);
+
+void rtc_release_lock(void)
+{
+	spin_unlock_irqrestore(&rtc_lock, rtc_lock_flags);
+}
+EXPORT_SYMBOL(rtc_release_lock);
+
+bool rtc_lprst_detected(void)
+{
+	unsigned long flags;
+	u16 ret;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	ret = hal_rtc_get_spare_register(RTC_LONG_PRESS_RST);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+
+	return ret;
+}
+
+bool rtc_enter_kpoc_detected(void)
+{
+	unsigned long flags;
+	u16 ret;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	ret = hal_rtc_get_spare_register(RTC_ENTER_KPOC);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL(rtc_enter_kpoc_detected);
+
+int rtc_get_reboot_reason(void)
+{
+	unsigned long flags;
+	u16 ret;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	ret = hal_rtc_get_register_status("REBOOT_REASON");
+	spin_unlock_irqrestore(&rtc_lock, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL(rtc_get_reboot_reason);
+
 /*
 * Only for GPS to check the status.
 * Others do not use this API
@@ -357,7 +409,19 @@ void rtc_mark_kpoc(void)
 	hal_rtc_set_spare_register(RTC_KPOC, 0x1);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
+
+#if defined(CONFIG_MTK_AUTO_POWER_ON_WITH_CHARGER)
+void rtc_mark_enter_kpoc(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_register(RTC_ENTER_KPOC, 0x1);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
 #endif
+#endif
+
 void rtc_mark_fast(void)
 {
 	unsigned long flags;
@@ -367,6 +431,46 @@ void rtc_mark_fast(void)
 	hal_rtc_set_spare_register(RTC_FAST_BOOT, 0x1);
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
+
+void rtc_mark_clear_lprst(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_register(RTC_LONG_PRESS_RST, 0x0);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
+
+void rtc_mark_enter_lprst(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_register(RTC_LONG_PRESS_RST, 0x1);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
+
+void rtc_mark_enter_sw_lprst(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_register(RTC_SW_LONG_PRESS_RST, 0x1);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
+
+void rtc_mark_reboot_reason(int reason)
+{
+	unsigned long flags;
+	char buf[8];
+
+	strcpy(buf, "reboot?");
+	buf[6] = (reason & RTC_SPAR0_REBOOT_REASON_MASK) + '0';
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_mark_mode(buf);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
+EXPORT_SYMBOL(rtc_mark_reboot_reason);
 
 u16 rtc_rdwr_uart_bits(u16 *val)
 {
@@ -396,6 +500,16 @@ void mt_power_off(void)
 #endif
 	rtc_xinfo("mt_power_off\n");
 
+#ifdef CONFIG_MTK_AUTO_POWER_ON_WITH_CHARGER
+	#if !defined(CONFIG_POWER_EXT)
+	if (pmic_chrdet_status() == true)
+		rtc_mark_enter_kpoc();
+	#else
+	if (upmu_get_rgs_chrdet())
+		rtc_mark_enter_kpoc();
+	#endif
+#endif
+
 	/* pull PWRBB low */
 	rtc_bbpu_power_down();
 
@@ -407,8 +521,12 @@ void mt_power_off(void)
 		/* Phone */
 		mdelay(100);
 		rtc_xinfo("Phone with charger\n");
-		if (pmic_chrdet_status() == KAL_TRUE || count > 10)
+		if (pmic_chrdet_status() == true || count > 10)
+#ifdef CONFIG_MTK_AUTO_POWER_ON_WITH_CHARGER
+			arch_reset(0, "enter_kpoc");
+#else
 			arch_reset(0, "charger");
+#endif
 		count++;
 #endif
 	}
@@ -475,7 +593,7 @@ static void rtc_handler(void)
 				/* tm.tm_sec += 1; */
 				hal_rtc_set_alarm(&tm);
 				spin_unlock(&rtc_lock);
-				arch_reset(0, "kpoc");
+				/*TODO arch_reset(0, "kpoc"); */
 			} else {
 				hal_rtc_save_pwron_alarm();
 				pwron_alm = true;
@@ -648,8 +766,15 @@ static int rtc_ops_set_alarm(struct device *dev, struct rtc_wkalrm *alm)
 	/* disable alarm and clear Power-On Alarm bit */
 	hal_rtc_clear_alarm(tm);
 
+#if defined(CONFIG_roc123) && defined(CONFIG_MTK_KERNEL_POWER_OFF_CHARGING)
+	if (get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT)
+		if (alm->enabled)
+			hal_rtc_set_alarm(tm);
+#else
 	if (alm->enabled)
 		hal_rtc_set_alarm(tm);
+#endif
+
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	return 0;

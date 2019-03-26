@@ -29,7 +29,7 @@
 #ifdef Bring_Up
 #ifdef pr_debug
 #undef pr_debug
-#define pr_debug pr_warn
+#define pr_debug printk
 #endif
 #define MT_CCF_DEBUG	1
 #define MT_CCF_BRINGUP	0 /* 1: only for bring up */

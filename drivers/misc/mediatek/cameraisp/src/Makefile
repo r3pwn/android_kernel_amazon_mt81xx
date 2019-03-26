@@ -14,10 +14,6 @@ ifeq ($(CONFIG_ARCH_MT6735),y)
   obj-y += $(CONFIG_MTK_PLATFORM)/
 endif
 
-ifeq ($(CONFIG_ARCH_MT6755),y)
-  obj-y += $(CONFIG_MTK_PLATFORM)/
-endif
-
 ifeq ($(CONFIG_ARCH_MT6753),y)
   obj-y += $(CONFIG_MTK_PLATFORM)/
 endif
@@ -25,10 +21,6 @@ endif
 #ifeq ($(CONFIG_ARCH_MT6795),y)
 #  obj-y += $(CONFIG_MTK_PLATFORM)/
 #endif
-
-ifeq ($(CONFIG_ARCH_MT8127),y)
-  obj-y += $(CONFIG_MTK_PLATFORM)/
-endif
 
 ifeq ($(CONFIG_ARCH_MT8163),y)
   obj-y += $(CONFIG_MTK_PLATFORM)/

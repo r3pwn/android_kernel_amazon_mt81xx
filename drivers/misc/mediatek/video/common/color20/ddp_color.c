@@ -5,7 +5,7 @@
 #include <linux/of_address.h>
 #if defined(CONFIG_MTK_CLKMGR) || defined(CONFIG_ARCH_MT6595) || defined(CONFIG_ARCH_MT6795)
 #include <mach/mt_clkmgr.h>
-#elif defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6797)
+#elif defined(CONFIG_ARCH_MT6755)
 #include "ddp_clkmgr.h"
 #endif
 
@@ -21,45 +21,37 @@ static DISP_PQ_PARAM g_Color_Param[2] = {
 	{
 u4SHPGain:2,
 u4SatGain:4,
-u4PartialY:0,
 u4HueAdj:{9, 9, 9, 9},
 u4SatAdj:{0, 0, 0, 0},
 u4Contrast:4,
 u4Brightness:4,
-u4Ccorr:0
 	 },
 	{
 u4SHPGain:2,
 u4SatGain:4,
-u4PartialY:0,
 u4HueAdj:{9, 9, 9, 9},
 u4SatAdj:{0, 0, 0, 0},
 u4Contrast:4,
-u4Brightness:4,
-u4Ccorr:1
-	}
+u4Brightness:4}
 };
 
 static DISP_PQ_PARAM g_Color_Cam_Param = {
 u4SHPGain:0,
 u4SatGain:4,
-u4PartialY:0,
 u4HueAdj:{9, 9, 9, 9},
 u4SatAdj:{0, 0, 0, 0},
 u4Contrast:4,
-u4Brightness:4,
-u4Ccorr:2
+u4Brightness:4
 };
 
 static DISP_PQ_PARAM g_Color_Gal_Param = {
 u4SHPGain:2,
 u4SatGain:4,
-u4PartialY:0,
 u4HueAdj:{9, 9, 9, 9},
 u4SatAdj:{0, 0, 0, 0},
 u4Contrast:4,
 u4Brightness:4,
-u4Ccorr:3
+
 };
 
 static DISP_PQ_DC_PARAM g_PQ_DC_Param = {
@@ -69,26 +61,6 @@ param:
 	 0x30, 0x40, 0x06, 0x12, 40, 0x40, 0x80, 0x40, 0x40, 1,
 	 0x80, 0x60, 0x80, 0x10, 0x34, 0x40, 0x40, 1, 0x80, 0xa,
 	 0x19, 0x00, 0x20, 0, 0, 1, 2, 1, 80, 1}
-};
-
-static DISP_PQ_DS_PARAM g_PQ_DS_Param = {
-param:
-	{
-	 1, -4, 1024, -4, 1024,
-	 1, 400, 200, 1600, 800,
-	 128, 8, 4, 12, 16,
-	 8, 24, -8, -4, -12,
-	 0, 0, 0}
-};
-
-static MDP_TDSHP_REG g_tdshp_reg = {
-	TDS_GAIN_MID:0x10,
-	TDS_GAIN_HIGH:0x20,
-	TDS_COR_GAIN:0x10,
-	TDS_COR_THR:0x4,
-	TDS_COR_ZERO:0x2,
-	TDS_GAIN:0x20,
-	TDS_COR_VALUE:0x3
 };
 
 /* initialize index (because system default is 0, need fill with 0x80) */
@@ -104,19 +76,8 @@ BRIGHTNESS :
 	{0x400, 0x400, 0x400, 0x400, 0x400, 0x400, 0x400, 0x400, 0x400, 0x400},	/* 0~9 */
 
 PARTIAL_Y :
-	{
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80},
-		{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
-	},
-
+	{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+	 0x80},
 
 PURP_TONE_S :
 	{			/* hue 0~10 */
@@ -839,30 +800,8 @@ SKY_TONE_H :
 	 {0x80, 0x80, 0x80},
 	 {0x80, 0x80, 0x80},
 	 {0x80, 0x80, 0x80}
-	},
-CCORR_COEF : /* ccorr feature */
-	{
-	 {
-	 {0x400, 0x0, 0x0},
-	 {0x0, 0x400, 0x0},
-	 {0x0, 0x0, 0x400},
-	 },
-	 {
-	 {0x400, 0x0, 0x0},
-	 {0x0, 0x400, 0x0},
-	 {0x0, 0x0, 0x400},
-	 },
-	 {
-	 {0x400, 0x0, 0x0},
-	 {0x0, 0x400, 0x0},
-	 {0x0, 0x0, 0x400},
-	 },
-	 {
-	 {0x400, 0x0, 0x0},
-	 {0x0, 0x400, 0x0},
-	 {0x0, 0x0, 0x400},
-	 },
-	}
+	 }
+
 };
 
 int color_dbg_en = 1;
@@ -884,8 +823,6 @@ static unsigned long g_color0_dst_h;
 static unsigned long g_color1_dst_w;
 static unsigned long g_color1_dst_h;
 
-static MDP_COLOR_CAP mdp_color_cap;
-
 #if defined(CONFIG_FPGA_EARLY_PORTING) || defined(DISP_COLOR_OFF)
 static int g_color_bypass = 1;
 #else
@@ -902,10 +839,7 @@ static unsigned long g_tdshp1_va;
 #else
 #define TDSHP_PA_BASE   0x14006000
 #endif
-#ifdef DISP_MDP_COLOR_ON
-#define MDP_COLOR_PA_BASE 0x14007000
-static unsigned long g_mdp_color_va;
-#endif
+
 static unsigned long g_tdshp_va;
 
 void disp_color_set_window(unsigned int sat_upper, unsigned int sat_lower,
@@ -1014,7 +948,8 @@ void DpEngine_COLORonInit(DISP_MODULE_ENUM module, void *__cmdq)
 
 }
 
-void DpEngine_COLORonConfig(DISP_MODULE_ENUM module, void *__cmdq)
+void DpEngine_COLORonConfig(DISP_MODULE_ENUM module, unsigned int srcWidth, unsigned int srcHeight,
+			    void *__cmdq)
 {
 	int index = 0;
 	unsigned int u4Temp = 0;
@@ -1043,6 +978,8 @@ void DpEngine_COLORonConfig(DISP_MODULE_ENUM module, void *__cmdq)
 	/* COLOR_ERR("DpEngine_COLORonConfig(%d)", module); */
 
 
+	_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_WIDTH + offset, srcWidth);	/* wrapper width */
+	_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_HEIGHT + offset, srcHeight);	/* wrapper height */
 
 
 	if (g_color_bypass == 0) {
@@ -1069,8 +1006,8 @@ void DpEngine_COLORonConfig(DISP_MODULE_ENUM module, void *__cmdq)
 	/* Partial Y Function */
 	for (index = 0; index < 8; index++) {
 		_color_reg_set(cmdq, DISP_COLOR_Y_SLOPE_1_0_MAIN + 4 * index,
-			       (g_Color_Index.PARTIAL_Y[pq_param_p->u4PartialY][2 * index] | g_Color_Index.
-				PARTIAL_Y[pq_param_p->u4PartialY][2 * index + 1] << 16));
+			       (g_Color_Index.PARTIAL_Y[2 * index] | g_Color_Index.
+				PARTIAL_Y[2 * index + 1] << 16));
 	}
 
 
@@ -1266,6 +1203,14 @@ void DpEngine_COLORonConfig(DISP_MODULE_ENUM module, void *__cmdq)
 	/* color window */
 
 	_color_reg_set(cmdq, DISP_COLOR_TWO_D_WINDOW_1 + offset, g_color_window);
+
+	/* ccorr feature : support scenario ccorr only on specified platform */
+#if defined(CCORR_SUPPORT)
+	ccorr_interface_for_color(pq_param_p->u4Ccorr,
+		g_Color_Index.CCORR_COEF[pq_param_p->u4Ccorr], cmdq);
+#endif
+
+
 }
 
 
@@ -1346,20 +1291,6 @@ static unsigned long color_get_TDSHP1_VA(void)
 }
 #endif
 
-#ifdef DISP_MDP_COLOR_ON
-static unsigned long color_get_MDP_COLOR_VA(void)
-{
-	unsigned long VA;
-	struct device_node *node = NULL;
-
-	node = of_find_compatible_node(NULL, NULL, "mediatek,mdp_color");
-	VA = (unsigned long)of_iomap(node, 0);
-	COLOR_DBG("MDP_COLOR VA: 0x%lx\n", VA);
-
-	return VA;
-}
-#endif
-
 static unsigned int color_is_reg_addr_valid(unsigned long addr)
 {
 	unsigned int i = 0;
@@ -1373,14 +1304,6 @@ static unsigned int color_is_reg_addr_valid(unsigned long addr)
 		COLOR_DBG("addr valid, addr=0x%lx, module=%s!\n", addr, ddp_get_reg_module_name(i));
 		return 1;
 	}
-
-	/*Check if MDP color base address*/
-#ifdef DISP_MDP_COLOR_ON
-	if ((addr >= g_mdp_color_va) && (addr < (g_mdp_color_va + 0x1000))) {			/* MDP COLOR */
-		COLOR_DBG("addr valid, addr=0x%lx, module=%s!\n", addr, "MDP_COLOR");
-		return 2;
-	}
-#endif
 
 	/* check if TDSHP base address */
 	if ((addr >= g_tdshp_va) && (addr < (g_tdshp_va + 0x1000))) {			/* TDSHP0 */
@@ -1427,15 +1350,6 @@ static unsigned long color_pa2va(unsigned int addr)
 	}
 #endif
 
-#ifdef DISP_MDP_COLOR_ON
-	/* MDP_COLOR */
-	if ((MDP_COLOR_PA_BASE <= addr) && (addr < (MDP_COLOR_PA_BASE + 0x1000))) {
-		COLOR_DBG("color_pa2va(), MDP_COLOR PA:0x%x, PABase[0x%x], VABase[0x%lx]\n", addr,
-			  MDP_COLOR_PA_BASE, g_mdp_color_va);
-		return g_mdp_color_va + (addr - MDP_COLOR_PA_BASE);
-	}
-#endif
-
 	COLOR_ERR("color_pa2va(), NO FOUND VA!! PA:0x%x, PABase[0x%x], VABase[0x%lx]\n", addr,
 		  (unsigned int)ddp_reg_pa_base[0], dispsys_reg[0]);
 
@@ -1446,10 +1360,6 @@ static unsigned int color_read_sw_reg(unsigned int reg_id)
 {
 	unsigned int ret = 0;
 
-	if (reg_id >= SWREG_PQDS_DS_EN && reg_id <= SWREG_PQDS_GAIN_0) {
-		ret = (unsigned int)g_PQ_DS_Param.param[reg_id - SWREG_PQDS_DS_EN];
-		return ret;
-	}
 	if (reg_id >= SWREG_PQDC_BLACK_EFFECT_ENABLE && reg_id <= SWREG_PQDC_DC_ENABLE) {
 		ret = (unsigned int)g_PQ_DC_Param.param[reg_id - SWREG_PQDC_BLACK_EFFECT_ENABLE];
 		return ret;
@@ -1489,18 +1399,6 @@ static unsigned int color_read_sw_reg(unsigned int reg_id)
 	case SWREG_TDSHP_BASE_ADDRESS:
 		{
 			ret = TDSHP_PA_BASE;
-			break;
-		}
-#ifdef DISP_MDP_COLOR_ON
-	case SWREG_MDP_COLOR_BASE_ADDRESS:
-		{
-			ret = MDP_COLOR_PA_BASE;
-			break;
-		}
-#endif
-	case SWREG_COLOR_MODE:
-		{
-			ret = COLOR_MODE;
 			break;
 		}
 
@@ -1543,65 +1441,10 @@ static void color_write_sw_reg(unsigned int reg_id, unsigned int value)
 		return;
 	}
 
-	if (reg_id >= SWREG_PQDS_DS_EN && reg_id <= SWREG_PQDS_GAIN_0) {
-		g_PQ_DS_Param.param[reg_id - SWREG_PQDS_DS_EN] = (int)value;
-		return;
-	}
-
 	switch (reg_id) {
 	case SWREG_TDSHP_TUNING_MODE:
 		{
 			g_tdshp_flag = (int)value;
-			break;
-		}
-	case SWREG_MDP_COLOR_CAPTURE_EN:
-		{
-			mdp_color_cap.en = value;
-			break;
-		}
-	case SWREG_MDP_COLOR_CAPTURE_POS_X:
-		{
-			mdp_color_cap.pos_x = value;
-			break;
-		}
-	case SWREG_MDP_COLOR_CAPTURE_POS_Y:
-		{
-			mdp_color_cap.pos_y = value;
-			break;
-		}
-	case SWREG_TDSHP_GAIN_MID:
-		{
-			g_tdshp_reg.TDS_GAIN_MID = value;
-			break;
-		}
-	case SWREG_TDSHP_GAIN_HIGH:
-		{
-			g_tdshp_reg.TDS_GAIN_HIGH = value;
-			break;
-		}
-	case SWREG_TDSHP_COR_GAIN:
-		{
-			g_tdshp_reg.TDS_COR_GAIN = value;
-			break;
-		}
-	case SWREG_TDSHP_COR_THR:
-		{
-			g_tdshp_reg.TDS_COR_THR = value;
-			break;
-		}
-	case SWREG_TDSHP_COR_ZERO:
-		{
-			g_tdshp_reg.TDS_COR_ZERO = value;
-			break;
-		}
-	case SWREG_TDSHP_GAIN:
-		{
-			g_tdshp_reg.TDS_GAIN = value;
-			break;
-		}
-	case SWREG_TDSHP_COR_VALUE:
-		{
-			g_tdshp_reg.TDS_COR_VALUE = value;
 			break;
 		}
 
@@ -1614,12 +1457,7 @@ static void color_write_sw_reg(unsigned int reg_id, unsigned int value)
 
 static int _color_clock_on(DISP_MODULE_ENUM module, void *cmq_handle)
 {
-#if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6797)
-	/* color is DCM , do nothing */
-	return 0;
-#endif
 #ifdef ENABLE_CLK_MGR
-#ifdef CONFIG_MTK_CLKMGR
 #if defined(CONFIG_ARCH_MT6595) || defined(CONFIG_ARCH_MT6795)
 	if (module == DISP_MODULE_COLOR0) {
 		enable_clock(MT_CG_DISP0_DISP_COLOR0, "DDP");
@@ -1631,12 +1469,13 @@ static int _color_clock_on(DISP_MODULE_ENUM module, void *cmq_handle)
 			  DISP_REG_GET(DISP_REG_CONFIG_MMSYS_CG_CON0));
 	}
 #else
+ #ifdef CONFIG_MTK_CLKMGR
 	enable_clock(MT_CG_DISP0_DISP_COLOR, "DDP");
 	COLOR_DBG("color[0]_clock_on CG 0x%x\n", DISP_REG_GET(DISP_REG_CONFIG_MMSYS_CG_CON0));
-#endif
-#else
+ #elif defined(CONFIG_ARCH_MT6755)
 	ddp_clk_enable(DISP0_DISP_COLOR);
 	COLOR_DBG("color[0]_clock_on CG 0x%x\n", DISP_REG_GET(DISP_REG_CONFIG_MMSYS_CG_CON0));
+ #endif
 #endif
 #endif
 
@@ -1645,12 +1484,7 @@ static int _color_clock_on(DISP_MODULE_ENUM module, void *cmq_handle)
 
 static int _color_clock_off(DISP_MODULE_ENUM module, void *cmq_handle)
 {
-#if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6797)
-	/* color is DCM , do nothing */
-	return 0;
-#endif
 #ifdef ENABLE_CLK_MGR
-#ifdef CONFIG_MTK_CLKMGR
 #if defined(CONFIG_ARCH_MT6595) || defined(CONFIG_ARCH_MT6795)
 	if (module == DISP_MODULE_COLOR0) {
 		COLOR_DBG("color[0]_clock_off\n");
@@ -1661,10 +1495,11 @@ static int _color_clock_off(DISP_MODULE_ENUM module, void *cmq_handle)
 	}
 #else
 	COLOR_DBG("color[0]_clock_off\n");
+ #ifdef CONFIG_MTK_CLKMGR
 	disable_clock(MT_CG_DISP0_DISP_COLOR, "DDP");
-#endif
-#else
+ #elif defined(CONFIG_ARCH_MT6755)
 	ddp_clk_disable(DISP0_DISP_COLOR);
+ #endif
 #endif
 #endif
 	return 0;
@@ -1675,9 +1510,6 @@ static int _color_init(DISP_MODULE_ENUM module, void *cmq_handle)
 	_color_clock_on(module, cmq_handle);
 
 	g_tdshp_va = color_get_TDSHP_VA();
-#ifdef DISP_MDP_COLOR_ON
-	g_mdp_color_va = color_get_MDP_COLOR_VA();
-#endif
 #if defined(CONFIG_ARCH_MT6595) || defined(CONFIG_ARCH_MT6795)
 	g_tdshp1_va = color_get_TDSHP1_VA();
 #endif
@@ -1692,9 +1524,6 @@ static int _color_deinit(DISP_MODULE_ENUM module, void *cmq_handle)
 
 static int _color_config(DISP_MODULE_ENUM module, disp_ddp_path_config *pConfig, void *cmq_handle)
 {
-	int offset = C0_OFFSET;
-	void *cmdq = cmq_handle;
-
 	if (!pConfig->dst_dirty)
 		return 0;
 
@@ -1706,27 +1535,11 @@ static int _color_config(DISP_MODULE_ENUM module, disp_ddp_path_config *pConfig,
 		g_color1_dst_h = pConfig->dst_h;
 #if defined(CONFIG_ARCH_MT6595) || defined(CONFIG_ARCH_MT6795)
 #ifndef CONFIG_FOR_SOURCE_PQ
-		offset = C1_OFFSET;
-		_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_WIDTH + offset, pConfig->dst_w);	/* wrapper width */
-		_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_HEIGHT + offset, pConfig->dst_h);	/* wrapper height */
-		return 0;
-#endif
-#endif
-	}
-	_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_WIDTH + offset, pConfig->dst_w);	/* wrapper width */
-	_color_reg_set(cmdq, DISP_COLOR_INTERNAL_IP_HEIGHT + offset, pConfig->dst_h);	/* wrapper height */
-
-	return 0;
-}
-
-static int _color_start(DISP_MODULE_ENUM module, void *cmdq)
-{
-	if (module == DISP_MODULE_COLOR1) {
-#if defined(CONFIG_ARCH_MT6595) || defined(CONFIG_ARCH_MT6795)
-#ifndef CONFIG_FOR_SOURCE_PQ
 		/* set bypass to COLOR1 */
 		{
 			const int offset = C1_OFFSET;
+			void *cmdq = cmq_handle;
+
 			/* disable R2Y/Y2R in Color Wrapper */
 			_color_reg_set(cmdq, DISP_COLOR_CM1_EN + offset, 0);
 			_color_reg_set(cmdq, DISP_COLOR_CM2_EN + offset, 0);
@@ -1738,8 +1551,9 @@ static int _color_start(DISP_MODULE_ENUM module, void *cmdq)
 #endif
 #endif
 	}
-	DpEngine_COLORonInit(module, cmdq);
-	DpEngine_COLORonConfig(module, cmdq);
+
+	DpEngine_COLORonInit(module, cmq_handle);
+	DpEngine_COLORonConfig(module, pConfig->dst_w, pConfig->dst_h, cmq_handle);
 
 	return 0;
 }
@@ -1778,7 +1592,8 @@ static int _color_io(DISP_MODULE_ENUM module, int msg, unsigned long arg, void *
 		if (ncs_tuning_mode == 0) {
 			/* normal mode */
 			DpEngine_COLORonInit(DISP_MODULE_COLOR0, cmdq);
-			DpEngine_COLORonConfig(DISP_MODULE_COLOR0, cmdq);
+			DpEngine_COLORonConfig(DISP_MODULE_COLOR0, g_color0_dst_w, g_color0_dst_h,
+					       cmdq);
 
 			color_trigger_refresh(DISP_MODULE_COLOR0);
 
@@ -2100,31 +1915,6 @@ static int _color_io(DISP_MODULE_ENUM module, int msg, unsigned long arg, void *
 
 		break;
 
-	case DISP_IOCTL_PQ_GET_DS_PARAM:
-			if (copy_to_user((void *)arg, &g_PQ_DS_Param, sizeof(DISP_PQ_DS_PARAM))) {
-				COLOR_ERR("DISP_IOCTL_PQ_GET_DS_PARAM Copy to user failed\n");
-				return -EFAULT;
-			}
-
-		break;
-
-	case DISP_IOCTL_PQ_GET_MDP_TDSHP_REG:
-			if (copy_to_user((void *)arg, &g_tdshp_reg, sizeof(MDP_TDSHP_REG))) {
-				COLOR_ERR("DISP_IOCTL_PQ_GET_MDP_TDSHP_REG Copy to user failed\n");
-				return -EFAULT;
-			}
-
-		break;
-
-#ifdef DISP_MDP_COLOR_ON
-	case DISP_IOCTL_PQ_GET_MDP_COLOR_CAP:
-			if (copy_to_user((void *)arg, &mdp_color_cap, sizeof(MDP_COLOR_CAP))) {
-				COLOR_ERR("DISP_IOCTL_PQ_GET_MDP_COLOR_CAP Copy to user failed\n");
-				return -EFAULT;
-			}
-
-		break;
-#endif
 	default:
 		{
 			COLOR_DBG("ioctl not supported failed\n");
@@ -2245,7 +2035,7 @@ DDP_MODULE_DRIVER ddp_driver_color = {
 	.init = _color_init,
 	.deinit = _color_deinit,
 	.config = _color_config,
-	.start = _color_start,
+	.start = NULL,
 	.trigger = NULL,
 	.stop = NULL,
 	.reset = NULL,

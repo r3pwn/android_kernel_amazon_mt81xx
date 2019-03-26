@@ -21,6 +21,9 @@ bool irq_pm_check_wakeup(struct irq_desc *desc)
 		desc->istate |= IRQS_SUSPENDED | IRQS_PENDING;
 		desc->depth++;
 		irq_disable(desc);
+		printk("waked up by irq %d\n", desc->irq_data.irq);
+		if (desc->action && desc->action->name)
+		     printk("waked up by dev %s\n", desc->action->name);
 		pm_system_wakeup();
 		return true;
 	}

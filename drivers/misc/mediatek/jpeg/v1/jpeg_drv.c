@@ -24,7 +24,6 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 
-#include <linux/xlog.h>
 
 #include <asm/io.h>
 
@@ -62,7 +61,6 @@
 #include <linux/aee.h>
 #include <linux/timer.h>
 #include <linux/disp_assert_layer.h>
-/* #include <linux/xlog.h> */
 /* #include <linux/fs.h> */
 
 /* Arch dependent files */

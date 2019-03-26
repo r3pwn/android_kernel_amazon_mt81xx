@@ -398,7 +398,7 @@ static void ke_gen_backtrace_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_BACKTRACE;
 
-	strcpy(data, aed_dev.kerec.lastlog->backtrace);
+	strncpy(data, aed_dev.kerec.lastlog->backtrace, AEE_BACKTRACE_LENGTH);
 	/* Count into the NUL byte at end of string */
 	rep_msg->len = strlen(data) + 1;
 }
@@ -600,7 +600,6 @@ static int ke_log_avail(void)
 		if (is_compat_task() != ((aed_dev.kerec.lastlog->dump_option & DB_OPT_AARCH64) == 0))
 			return 0;
 #endif
-		LOGI("AEE api log available\n");
 		return 1;
 	}
 
@@ -718,17 +717,17 @@ static void ee_gen_process_msg(void)
 
 	if (eerec->exp_linenum != 0) {
 		/* for old aed_md_exception1() */
-		n = sprintf(data, "%s", eerec->assert_type);
+		n = snprintf(data, sizeof(eerec->assert_type), "%s", eerec->assert_type);
 		if (eerec->exp_filename[0] != 0) {
-			n += sprintf(data + n, ", filename=%s,line=%d", eerec->exp_filename,
+			n += snprintf(data + n, (PROCESS_STRLEN - n), ", filename=%s,line=%d", eerec->exp_filename,
 				     eerec->exp_linenum);
 		} else if (eerec->fatal1 != 0 && eerec->fatal2 != 0) {
-			n += sprintf(data + n, ", err1=%d,err2=%d", eerec->fatal1,
+			n += snprintf(data + n, (PROCESS_STRLEN - n), ", err1=%d,err2=%d", eerec->fatal1,
 				     eerec->fatal2);
 		}
 	} else {
 		LOGD("ee_gen_process_msg else\n");
-		n = sprintf(data, "%s", eerec->exp_filename);
+		n = snprintf(data, PROCESS_STRLEN, "%s", eerec->exp_filename);
 	}
 
 	rep_msg->cmdType = AE_RSP;
@@ -827,7 +826,7 @@ static void ee_gen_coredump_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_COREDUMP;
 	rep_msg->arg = 0;
-	sprintf(data, "/proc/aed/%s", CURRENT_EE_COREDUMP);
+	snprintf(data, 256, "/proc/aed/%s", CURRENT_EE_COREDUMP);
 	rep_msg->len = strlen(data) + 1;
 }
 
@@ -1420,11 +1419,6 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					goto EXIT;
 				}
 				user_ret = task_pt_regs(task);
-				if (NULL == user_ret) {
-					kfree(tmp);
-					ret = -EINVAL;
-					goto EXIT;
-				}
 				memcpy(&(tmp->regs), user_ret, sizeof(struct pt_regs));
 				if (copy_to_user
 				    ((struct aee_thread_reg __user *)arg, tmp,
@@ -1762,11 +1756,13 @@ static void kernel_reportAPI(const AE_DEFECT_ATTR attr, const int db_opt, const 
 			oops->userthread_stack.Userthread_Stack = vzalloc(MaxStackSize);
 			if (oops->userthread_stack.Userthread_Stack == NULL) {
 				LOGE("%s: oops->userthread_stack.Userthread_Stack Vmalloc fail", __func__);
+				kfree(oops);
 				return;
 			}
 			oops->userthread_maps.Userthread_maps = vzalloc(MaxMapsSize);
 			if (oops->userthread_maps.Userthread_maps == NULL) {
 				LOGE("%s: oops->userthread_maps.Userthread_maps Vmalloc fail", __func__);
+				kfree(oops);
 				return;
 			}
 			LOGE("%s: oops->userthread_stack.Userthread_Stack :0x%08lx,maps:0x%08lx",
@@ -1884,7 +1880,7 @@ static void external_exception(const char *assert_type, const int *log, int log_
 		/* kernel vamlloc cannot be used in interrupt context */
 		LOGD("External exception occur in interrupt context, no coredump");
 		phy_size = 0;
-	} else if ((phy < 0) || (phy_size > MAX_EE_COREDUMP)) {
+	} else if ((phy == NULL) || (phy_size > MAX_EE_COREDUMP)) {
 		LOGD("EE Physical memory size(%d) too large or invalid", phy_size);
 		phy_size = 0;
 	}

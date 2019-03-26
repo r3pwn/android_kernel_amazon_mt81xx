@@ -37,6 +37,8 @@
 
 
 LIST_HEAD(super_blocks);
+EXPORT_SYMBOL_GPL(super_blocks);
+
 DEFINE_SPINLOCK(sb_lock);
 
 static char *sb_writers_name[SB_FREEZE_LEVELS] = {
@@ -769,7 +771,7 @@ static void do_emergency_remount(struct work_struct *work)
 	struct super_block *sb, *p = NULL;
 
 	spin_lock(&sb_lock);
-	list_for_each_entry_reverse(sb, &super_blocks, s_list) {
+	list_for_each_entry(sb, &super_blocks, s_list) {
 		if (hlist_unhashed(&sb->s_instances))
 			continue;
 		sb->s_count++;
@@ -1153,13 +1155,7 @@ void __sb_end_write(struct super_block *sb, int level)
 	smp_mb();
 	if (waitqueue_active(&sb->s_writers.wait))
 		wake_up(&sb->s_writers.wait);
-
-	/*s_writers was taken with lockdep checks disabled,
-	* so turn off lockdep checks here too
-	*/
-	lockdep_off();
 	rwsem_release(&sb->s_writers.lock_map[level-1], 1, _RET_IP_);
-	lockdep_on();
 }
 EXPORT_SYMBOL(__sb_end_write);
 
@@ -1185,13 +1181,7 @@ static void acquire_freeze_lock(struct super_block *sb, int level, bool trylock,
 				break;
 			}
 	}
-
-	/*s_writers was taken with lockdep checks disabled,
-	* so turn off lockdep checks here too
-	*/
-	lockdep_off();
 	rwsem_acquire_read(&sb->s_writers.lock_map[level-1], 0, trylock, ip);
-	lockdep_on();
 }
 #endif
 

@@ -1,5 +1,6 @@
 #include <linux/kernel.h>
 #include <mt-plat/sync_write.h>
+#include <mt-plat/mt_typedefs.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <mt-plat/mt_io.h>
@@ -17,7 +18,7 @@ void BM_Init(void)
 	node = of_find_compatible_node(NULL, NULL, "mediatek,EMI");
 	if (node) {
 		EMI_BASE_ADDR = of_iomap(node, 0);
-		pr_err("get EMI_BASE_ADDR @ %p\n", EMI_BASE_ADDR);
+		pr_notice("get EMI_BASE_ADDR @ %p\n", EMI_BASE_ADDR);
 	} else {
 		pr_err("can't find compatible node\n");
 		return;
@@ -62,13 +63,6 @@ void BM_Init(void)
 		mt_reg_sync_writel(readl(IOMEM(EMI_ARBF)) &
 		~0x00008000, EMI_ARBF);
 	}
-
-	if (readl(IOMEM(EMI_ARBG_2ND)) & 0x00008000) {
-		g_cBWL |= 1 << 6;
-		mt_reg_sync_writel(readl(IOMEM(EMI_ARBG_2ND)) &
-		~0x00008000, EMI_ARBG_2ND);
-	}
-#if defined(CONFIG_ARCH_MT6797)
 	if (readl(IOMEM(EMI_ARBG)) & 0x00008000) {
 		g_cBWL |= 1 << 6;
 		mt_reg_sync_writel(readl(IOMEM(EMI_ARBG)) &
@@ -79,7 +73,6 @@ void BM_Init(void)
 		mt_reg_sync_writel(readl(IOMEM(EMI_ARBH)) &
 		~0x00008000, EMI_ARBH);
 	}
-#endif
 
 }
 
@@ -123,12 +116,6 @@ void BM_DeInit(void)
 
 	if (g_cBWL & (1 << 6)) {
 		g_cBWL &= ~(1 << 6);
-		mt_reg_sync_writel(readl(IOMEM(EMI_ARBG_2ND)) |
-		0x00008000, EMI_ARBG_2ND);
-	}
-#if defined(CONFIG_ARCH_MT6797)
-	if (g_cBWL & (1 << 6)) {
-		g_cBWL &= ~(1 << 6);
 		mt_reg_sync_writel(readl(IOMEM(EMI_ARBG)) |
 		0x00008000, EMI_ARBG);
 	}
@@ -138,7 +125,6 @@ void BM_DeInit(void)
 		mt_reg_sync_writel(readl(IOMEM(EMI_ARBH)) |
 		0x00008000, EMI_ARBH);
 	}
-#endif
 
 }
 
@@ -462,23 +448,6 @@ int BM_GetLatencyCycle(const unsigned int counter_num)
 	case 16:
 		cycle_count = readl(IOMEM(EMI_TTYPE16));
 		break;
-#if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6797)
-	case 17:
-		cycle_count = readl(IOMEM(EMI_TTYPE17));
-		break;
-	case 18:
-		cycle_count = readl(IOMEM(EMI_TTYPE18));
-		break;
-	case 19:
-		cycle_count = readl(IOMEM(EMI_TTYPE19));
-		break;
-	case 20:
-		cycle_count = readl(IOMEM(EMI_TTYPE20));
-		break;
-	case 21:
-		cycle_count = readl(IOMEM(EMI_TTYPE21));
-		break;
-#endif
 	default:
 		return BM_ERR_WRONG_REQ;
 	}
@@ -603,54 +572,7 @@ unsigned int DRAMC_GetInterbankCount(const unsigned int CountType)
 unsigned int DRAMC_GetIdleCount(void)
 {
 	return ucDram_Register_Read(DRAMC_IDLE_COUNT);
-
 }
-#if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6797)
-
-unsigned int BM_GetBWST(void)
-{
-	return readl(IOMEM(EMI_BWST));
-}
-
-unsigned int BM_GetBWST1(void)
-{
-	return readl(IOMEM(EMI_BWST1));
-}
-
-int BM_SetBW(const unsigned int BW_config)
-{
-	unsigned int value;
-
-	value = readl(IOMEM(EMI_CONH));
-	value &= 0xFFFF8007;
-	value |= BW_config & 0x7FF8;
-	mt_reg_sync_writel(value, EMI_CONH);
-
-	return BM_REQ_OK;
-}
-
-int BM_SetBW1(const unsigned int BW_config)
-{
-	unsigned int value;
-
-	value = readl(IOMEM(EMI_CONO));
-	value &= 0xFF008007;
-	value |= BW_config & 0xFF7FF8;
-	mt_reg_sync_writel(value, EMI_CONO);
-
-	return BM_REQ_OK;
-}
-
-unsigned int BM_GetBW(void)
-{
-	return readl(IOMEM(EMI_CONH)) & 0x7FF8;
-}
-
-unsigned int BM_GetBW1(void)
-{
-	return readl(IOMEM(EMI_CONO)) & 0xFF7FF8;
-}
-#endif
 
 void *mt_emi_base_get(void)
 {

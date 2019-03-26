@@ -399,9 +399,7 @@ wake_reason_t __spm_output_wake_reason(const struct wake_status *wakesta,
 	}
 	for (i = 1; i < 32; i++) {
 		if (wakesta->r12 & (1U << i)) {
-			if ((strlen(buf) + strlen(wakesrc_str[i])) < LOG_BUF_SIZE)
-				strncat(buf, wakesrc_str[i], strlen(wakesrc_str[i]));
-
+			strcat(buf, wakesrc_str[i]);
 			wr = WR_WAKE_SRC;
 		}
 	}
@@ -409,10 +407,10 @@ wake_reason_t __spm_output_wake_reason(const struct wake_status *wakesta,
 	BUG_ON(strlen(buf) >= LOG_BUF_SIZE);
 #endif
 
-	spm_warn("wake up by%s, timer_out = %u, r13 = 0x%x, debug_flag = 0x%x\n",
+	spm_print(suspend, "wake up by%s, timer_out = %u, r13 = 0x%x, debug_flag = 0x%x\n",
 		  buf, wakesta->timer_out, wakesta->r13, wakesta->debug_flag);
 
-	spm_warn(
+	spm_print(suspend,
 		  "r12 = 0x%x, raw_sta = 0x%x, idle_sta = 0x%x, event_reg = 0x%x, isr = 0x%x\n",
 		  wakesta->r12, wakesta->raw_sta, wakesta->idle_sta, wakesta->event_reg,
 		  wakesta->isr);

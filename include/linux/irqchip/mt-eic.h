@@ -62,9 +62,18 @@
 /*
  * Define constants.
  */
+/*
+#define EINT_IRQ_BASE            NR_MT_IRQ_LINE
+#define EINT_AP_MAXNUMBER       64
+#define EINT_MAX_CHANNEL        64
+#define DEINT_MAX_CHANNEL       4
+*/
 #define MT_EINT_POL_NEG         0
 #define MT_EINT_POL_POS         1
 #define MAX_HW_DEBOUNCE_CNT     32
+/*
+#define MAX_DEINT_CNT           4
+*/
 #define EINTF_TRIGGER_RISING    0x00000001
 #define EINTF_TRIGGER_FALLING   0x00000002
 #define EINTF_TRIGGER_HIGH      0x00000004
@@ -86,14 +95,12 @@
 extern void _print_status(void);
 extern int mt_gpio_set_debounce(unsigned gpio, unsigned debounce);
 extern unsigned int mt_gpio_to_irq(unsigned gpio);
-extern int mt_get_supported_irq_num_ex(void) __attribute__((weak));
 
 void mt_eint_mask(unsigned int eint_num);
 void mt_eint_unmask(unsigned int eint_num);
 void mt_eint_set_hw_debounce(unsigned int eint_num, unsigned int ms);
 void mt_eint_set_polarity(unsigned int eint_num, unsigned int pol);
 unsigned int mt_eint_set_sens(unsigned int eint_num, unsigned int sens);
-void mt_eint_virq_soft_clr(unsigned int virq);
 
 /* used to access the gic device tree resource */
 extern int mt_get_supported_irq_num(void);

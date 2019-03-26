@@ -115,6 +115,10 @@ struct mmc_ext_csd {
 	u8			raw_bkops_status;	/* 246 */
 	u8			raw_sectors[4];		/* 212 - 4 bytes */
 
+#define DEVICE_LIFE_TIME_EST_TYP_A 268
+#define DEVICE_LIFE_TIME_EST_TYP_B 269
+	u8			device_life_time_est_typ_a;	/* 268 */
+	u8			device_life_time_est_typ_b;	/* 269 */
 	unsigned int            feature_support;
 #define MMC_DISCARD_FEATURE	BIT(0)                  /* CMD38 feature */
 };
@@ -314,9 +318,6 @@ struct mmc_card {
 #ifdef MTK_BKOPS_IDLE_MAYA	/* maya is 1<<11 */
 #define MMC_STATE_NEED_BKOPS	(1<<12)	/* card needs to do BKOPS */
 #endif
-#ifdef CONFIG_MMC_FFU
-#define MMC_STATE_FFUED         (1<<22)     /* card has been FFUed */
-#endif
 #define MMC_STATE_SUSPENDED	(1<<6)		/* card is suspended */
 #define MMC_STATE_SLEEP     (1<<9)      /*card is sleep */
 	unsigned int		quirks; 	/* card quirks */
@@ -335,9 +336,11 @@ struct mmc_card {
 #define MMC_QUIRK_LONG_READ_TIME (1<<9)		/* Data read time > CSD says */
 #define MMC_QUIRK_SEC_ERASE_TRIM_BROKEN (1<<10)	/* Skip secure for erase/trim */
 #define MMC_QUIRK_BROKEN_IRQ_POLLING	(1<<11)	/* Polling SDIO_CCCR_INTx could create a fake interrupt */
-#ifdef CONFIG_MTK_EMMC_CACHE
-#define MMC_QUIRK_DISABLE_CACHE     (1<<12) /* eMMC cache feature */
-#endif
+#ifdef CONFIG_MMC_SAMSUNG_SMART
+#define MMC_QUIRK_SAMSUNG_SMART (1<<11)		/* Samrung smart read */
+#endif /* CONFIG_MMC_SAMSUNG_SMART */
+/* disable sleep notifation, this may cause card busy long time on some eMMC*/
+#define MMC_QUIRK_DISABLE_SNO       (1<<13)
 
 	unsigned int		erase_size;	/* erase size in sectors */
  	unsigned int		erase_shift;	/* if erase unit is power 2 */
@@ -364,6 +367,7 @@ struct mmc_card {
 	struct sdio_func_tuple	*tuples;	/* unknown common tuples */
 
 	unsigned int		sd_bus_speed;	/* Bus Speed Mode set for the card */
+	unsigned int            sd_speed_class; /* Bus Speed Mode set for the card */
 	unsigned int		mmc_avail_type;	/* supported device type by both host and card */
 
 	struct dentry		*debugfs_root;
@@ -372,6 +376,14 @@ struct mmc_card {
 #ifdef MTK_BKOPS_IDLE_MAYA
 	struct mmc_bkops_info bkops_info;
 #endif
+#ifdef CONFIG_AMAZON_METRICS_LOG                /* for attribute */
+	unsigned int minReservedBlocks;
+	unsigned int maxEraseCountMLC;
+	unsigned int avgEraseCountMLC;
+	unsigned int maxEraseCountSLC;
+	unsigned int avgEraseCountSLC;
+#endif /* CONFIG_AMAZON_METRICS_LOG */
+
 };
 
 /*
@@ -607,4 +619,10 @@ extern void mmc_unregister_driver(struct mmc_driver *);
 extern void mmc_fixup_device(struct mmc_card *card,
 			     const struct mmc_fixup *table);
 
+#ifdef CONFIG_MMC_SAMSUNG_SMART
+extern ssize_t mmc_samsung_smart_handle(struct mmc_card *card, char *buf);
+extern int mmc_samsung_report(struct mmc_card *card, u8 *buf);
+#endif /* CONFIG_MMC_SAMSUNG_SMART */
+extern int mmc_toshiba_report(struct mmc_card *card, u8 *buf);
+extern int mmc_micron_smart_report(struct mmc_card *card, u8 *buf);
 #endif /* LINUX_MMC_CARD_H */

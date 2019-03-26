@@ -218,7 +218,7 @@ static int acc_enable_data(int enable)
 		cxt->is_active_data = true;
 		cxt->is_first_data_after_enable = true;
 		cxt->acc_ctl.open_report_data(1);
-	acc_real_enable(enable);
+		acc_real_enable(enable);
 		if (false == cxt->is_polling_run && cxt->is_batch_enable == false) {
 			if (false == cxt->acc_ctl.is_report_input_direct) {
 				startTimer(&cxt->hrTimer, atomic_read(&cxt->delay), true);
@@ -243,7 +243,7 @@ static int acc_enable_data(int enable)
 				cxt->drv_data.acc_data.values[2] = ACC_INVALID_VALUE;
 			}
 		}
-	acc_real_enable(enable);
+		acc_real_enable(enable);
 	}
 	return 0;
 }
@@ -406,10 +406,11 @@ static ssize_t acc_store_batch(struct device *dev, struct device_attribute *attr
 {
 	struct acc_context *cxt = NULL;
 
-	ACC_LOG("acc_store_batch buf=%s\n", buf);
+	/* ACC_LOG("acc_store_batch buf=%s\n", buf); */
 	mutex_lock(&acc_context_obj->acc_op_mutex);
 	cxt = acc_context_obj;
 	if (cxt->acc_ctl.is_support_batch) {
+		ACC_LOG("acc_store_batch buf=%s\n", buf);
 		if (!strncmp(buf, "1", 1)) {
 			cxt->is_batch_enable = true;
 			if (true == cxt->is_polling_run) {
@@ -436,7 +437,7 @@ static ssize_t acc_store_batch(struct device *dev, struct device_attribute *attr
 		ACC_LOG(" acc_store_batch mot supported\n");
 
 	mutex_unlock(&acc_context_obj->acc_op_mutex);
-	ACC_LOG(" acc_store_batch done: %d\n", cxt->is_batch_enable);
+	/* ACC_LOG(" acc_store_batch done: %d\n", cxt->is_batch_enable); */
 	return count;
 
 }
@@ -681,6 +682,42 @@ int acc_data_report(int x, int y, int z, int status, int64_t nt)
 	return err;
 }
 
+#ifdef CONFIG_PM
+int acc_pm_notify(struct notifier_block *notify_block,
+					unsigned long mode, void *unused)
+{
+	struct acc_context *cxt = acc_context_obj;
+
+	switch (mode) {
+	case PM_SUSPEND_PREPARE:
+		if (cxt->is_active_data && cxt->is_polling_run) {
+			pr_info("%s: freeze polling thread\n", __func__);
+			cxt->is_need_restore_polling = true;
+			cxt->is_polling_run = false;
+			smp_mb();  /* for memory barrier */
+			stopTimer(&cxt->hrTimer);
+			smp_mb();  /* for memory barrier */
+			cancel_work_sync(&cxt->report);
+			cxt->drv_data.acc_data.values[0] = ACC_INVALID_VALUE;
+			cxt->drv_data.acc_data.values[1] = ACC_INVALID_VALUE;
+			cxt->drv_data.acc_data.values[2] = ACC_INVALID_VALUE;
+		}
+		break;
+
+	case PM_POST_SUSPEND:
+		if (cxt->is_active_data && cxt->is_need_restore_polling) {
+			pr_info("%s: restore polling thread\n", __func__);
+			cxt->is_polling_run = true;
+			cxt->is_need_restore_polling = false;
+			startTimer(&cxt->hrTimer, atomic_read(&cxt->delay), true);
+		}
+		break;
+	}
+
+	return 0;
+}
+#endif
+
 static int acc_probe(void)
 {
 
@@ -710,6 +747,11 @@ static int acc_probe(void)
 		ACC_ERR("unable to register acc input device!\n");
 		goto exit_alloc_input_dev_failed;
 	}
+
+#ifdef CONFIG_PM
+	acc_context_obj->acc_pm_notify.notifier_call = acc_pm_notify;
+	register_pm_notifier(&acc_context_obj->acc_pm_notify);
+#endif
 
 	ACC_LOG("----accel_probe OK !!\n");
 	return 0;

@@ -1026,12 +1026,15 @@ static int spi_init_queue(struct spi_master *master)
 	 * request and the scheduling of the message pump thread. Without this
 	 * setting the message pump thread will remain at default priority.
 	 */
+#ifndef CONFIG_MT_SND_SOC_8163_AMZN
 	if (master->rt) {
+#endif
 		dev_info(&master->dev,
 			"will run message pump with realtime priority\n");
 		sched_setscheduler(master->kworker_task, SCHED_FIFO, &param);
+#ifndef CONFIG_MT_SND_SOC_8163_AMZN
 	}
-
+#endif
 	return 0;
 }
 

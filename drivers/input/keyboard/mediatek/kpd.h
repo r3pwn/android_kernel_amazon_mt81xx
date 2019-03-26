@@ -136,5 +136,7 @@ void kpd_pwrkey_pmic_handler(unsigned long pressed);
 static inline void kpd_pwrkey_pmic_handler(unsigned long data);
 #endif
 void kpd_pmic_rstkey_handler(unsigned long pressed);
-
+#ifdef CONFIG_KPD_VOLUME_KEY_SWAP
+u32 kpd_get_linux_key_code(u32 keycode, bool pressed);
+#endif
 #endif				/* __KPD_H__ */

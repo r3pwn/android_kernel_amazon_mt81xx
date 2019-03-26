@@ -49,7 +49,6 @@ extern unsigned int g_lock_state;
 extern unsigned int g_random_id[NUM_RID];
 extern unsigned char g_crypto_seed[NUM_CRYPTO_SEED];
 extern unsigned int g_sbc_pubk_hash[NUM_SBC_PUBK_HASH];
-extern unsigned int lks;
 
 /**************************************************************************
  * EXPORT FUNCTION

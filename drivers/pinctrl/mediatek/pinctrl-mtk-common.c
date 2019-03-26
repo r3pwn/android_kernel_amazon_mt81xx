@@ -45,6 +45,9 @@
 #include "../pinconf.h"
 #include "../pinctrl-utils.h"
 #include "pinctrl-mtk-common.h"
+#ifdef CONFIG_MTK_EIC
+#include <linux/irqchip/mt-eic.h>
+#endif
 
 #define MAX_GPIO_MODE_PER_REG 5
 #define GPIO_MODE_BITS        3
@@ -83,8 +86,6 @@ static int mtk_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	unsigned int bit;
 	struct mtk_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	pr_debug("fwq gpioapi set_direction pin=%d,dir_input=%d\n", offset, input);
-
 	if (pctl->devdata->mt_set_gpio_dir) {
 
 
@@ -92,11 +93,7 @@ static int mtk_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 		pctl->devdata->mt_set_gpio_dir(offset|0x80000000, (!input));
 
 	    return 0;
-	} else{
-
-		pr_debug("fwq pinctrl set_direction pin=%d,dirinput=%d base not ready\n", offset, input);
 	}
-
 
 	reg_addr = mtk_get_port(pctl, offset) + pctl->devdata->dir_offset;
 	bit = BIT(offset & 0xf);
@@ -118,7 +115,6 @@ static void mtk_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 	unsigned int bit;
 	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
 
-	pr_debug("fwq pinctrl set gpio out pin=%d,value=%d\n", offset, value);
 	if (pctl->devdata->mt_set_gpio_out) {
 		/* please weiqi to confirm */
 		pctl->devdata->mt_set_gpio_out(offset|0x80000000, value);
@@ -144,9 +140,6 @@ static int mtk_pconf_set_ies_smt(struct mtk_pinctrl *pctl, unsigned pin,
 {
 	unsigned int reg_addr, offset;
 	unsigned int bit;
-
-	pr_debug("fwq pinctrl set ies &smt pin=%d,value=%d,arg=%d\n",
-		pin, value, arg);
 
 	if (pctl->devdata->mt_set_gpio_ies || pctl->devdata->mt_set_gpio_smt) {
 		if (arg == PIN_CONFIG_INPUT_ENABLE)
@@ -241,11 +234,8 @@ static void mtk_pconf_set_direction(struct mtk_pinctrl *pctl, unsigned pin,
 		int value, enum pin_config_param param)
 
 {
-	pr_debug("fwq pinctrl set mtk_pconf_set_direction pin=%d,value=%d,para=%d\n", pin, value, param);
 	if (pctl->devdata->mt_set_gpio_dir)
 		pctl->devdata->mt_set_gpio_dir(pin|0x80000000, value);
-	else
-		pr_debug("fwq pinctrl set_direction pin=%d,dir=%d base not ready\n", pin, value);
 }
 
 static int mtk_pconf_set_driving(struct mtk_pinctrl *pctl,
@@ -255,8 +245,6 @@ static int mtk_pconf_set_driving(struct mtk_pinctrl *pctl,
 	unsigned int val;
 	unsigned int bits, mask, shift;
 	const struct mtk_drv_group_desc *drv_grp;
-
-	pr_debug("fwq pinctrl set driving pin=%d,driving=%x\n", pin, driving);
 
 	if (pin >= pctl->devdata->npins)
 		return -EINVAL;
@@ -353,9 +341,6 @@ static int mtk_pconf_set_pull_select(struct mtk_pinctrl *pctl,
 	 * resistor bit, so we need this special handle.
 	 */
 
-	pr_debug("fwq pinctrl set pullen & pull_select en=%d pin=%d,isup=%d\n", enable, pin, isup);
-
-
 	if (pctl->devdata->mt_set_gpio_pull_enable) {
 		if (enable)
 			pctl->devdata->mt_set_gpio_pull_enable(pin | 0x80000000, 1);
@@ -363,10 +348,7 @@ static int mtk_pconf_set_pull_select(struct mtk_pinctrl *pctl,
 			pctl->devdata->mt_set_gpio_pull_enable(pin | 0x80000000, 0);
 			return 0;
 		}
-	} else
-		pr_debug("pinctrl gpin pull enable base not ready\n");
-
-
+	}
 
 	if (pctl->devdata->mt_set_gpio_pull_select) {
 		if (isup)
@@ -420,8 +402,6 @@ static int mtk_pconf_parse_conf(struct pinctrl_dev *pctldev,
 {
 	int ret = 0;
 	struct mtk_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-
-	/*pr_debug("fwq pinconfig param=%d, arg=%d\n", param, arg);*/
 
 	switch (param) {
 	case PIN_CONFIG_BIAS_DISABLE:
@@ -600,6 +580,9 @@ static int mtk_pctrl_dt_subnode_to_map(struct pinctrl_dev *pctldev,
 		}
 	}
 	err = pinconf_generic_parse_dt_config(node, &configs, &num_configs);
+	if (err)
+		return err;
+
 	if (num_configs)
 		has_config = 1;
 
@@ -611,15 +594,17 @@ static int mtk_pctrl_dt_subnode_to_map(struct pinctrl_dev *pctldev,
 	if (has_config && num_pins >= 1)
 		maps_per_pin++;
 
-	if (!num_pins || !maps_per_pin)
-		return -EINVAL;
+	if (!num_pins || !maps_per_pin) {
+		err = -EINVAL;
+		goto exit;
+	}
 
 	reserve = num_pins * maps_per_pin;
 
 	err = pinctrl_utils_reserve_map(pctldev, map,
 			reserved_maps, num_maps, reserve);
 	if (err < 0)
-		goto fail;
+		goto exit;
 
 	for (i = 0; i < num_pins; i++) {
 		err = of_property_read_u32_index(node, "pinmux",
@@ -628,7 +613,7 @@ static int mtk_pctrl_dt_subnode_to_map(struct pinctrl_dev *pctldev,
 			err = of_property_read_u32_index(node, "pins",
 					i, &pinfunc);
 			if (err)
-				goto fail;
+				goto exit;
 		}
 
 		pin = MTK_GET_PIN_NO(pinfunc);
@@ -638,20 +623,21 @@ static int mtk_pctrl_dt_subnode_to_map(struct pinctrl_dev *pctldev,
 				func >= ARRAY_SIZE(mtk_gpio_functions)) {
 			dev_err(pctl->dev, "invalid pins value.\n");
 			err = -EINVAL;
-			goto fail;
+			goto exit;
 		}
 
 		grp = mtk_pctrl_find_group_by_pin(pctl, pin);
 		if (!grp) {
 			dev_err(pctl->dev, "unable to match pin %d to group\n",
 					pin);
-			return -EINVAL;
+			err = -EINVAL;
+			goto exit;
 		}
 
 		err = mtk_pctrl_dt_node_to_map_func(pctl, pin, func, grp, map,
 				reserved_maps, num_maps);
 		if (err < 0)
-			goto fail;
+			goto exit;
 
 		if (has_config) {
 			err = pinctrl_utils_add_map_configs(pctldev, map,
@@ -659,13 +645,14 @@ static int mtk_pctrl_dt_subnode_to_map(struct pinctrl_dev *pctldev,
 					configs, num_configs,
 					PIN_MAP_TYPE_CONFIGS_GROUP);
 			if (err < 0)
-				goto fail;
+				goto exit;
 		}
 	}
 
-	return 0;
+	err = 0;
 
-fail:
+exit:
+	kfree(configs);
 	return err;
 }
 
@@ -764,8 +751,6 @@ static int mtk_pmx_set_mode(struct pinctrl_dev *pctldev,
 	unsigned int mask = (1L << GPIO_MODE_BITS) - 1;
 	struct mtk_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	pr_debug("fwq pinctrl set mode pin=%ld,mode=%ld\n", pin, mode);
-
 	reg_addr = ((pin / MAX_GPIO_MODE_PER_REG) << pctl->devdata->port_shf)
 			+ pctl->devdata->pinmux_offset;
 
@@ -847,7 +832,6 @@ static int mtk_gpio_direction_input(struct gpio_chip *chip,
 static int mtk_gpio_direction_output(struct gpio_chip *chip,
 					unsigned offset, int value)
 {
-	pr_debug("fwq pinctrl set out pin=%d,out=%d\n", offset, value);
 	mtk_gpio_set(chip, offset, value);
 	return pinctrl_gpio_direction_output(chip->base + offset);
 }
@@ -860,8 +844,6 @@ static int mtk_gpio_get_direction(struct gpio_chip *chip, unsigned offset)
 	int dir = 0;
 
 	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
-
-	pr_debug("fwq pinctrl get_direction pin=%d\n", offset);
 
 	if (pctl->devdata->mt_get_gpio_dir) {
 
@@ -883,12 +865,12 @@ static int mtk_gpio_get(struct gpio_chip *chip, unsigned offset)
 	int value =  -1;
 	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
 
-	if (pctl->devdata->mt_get_gpio_out != NULL && pctl->devdata->mt_get_gpio_in != NULL) {
-		if (mtk_gpio_get_direction(chip, offset))
+	if (pctl->devdata->mt_get_gpio_out != NULL || pctl->devdata->mt_get_gpio_in != NULL) {
+		if (mtk_gpio_get_direction(chip, offset)) {
 			value = pctl->devdata->mt_get_gpio_out(offset|0x80000000);
-		else
-			value = pctl->devdata->mt_get_gpio_in(offset|0x80000000);
-		return value;
+			return value;
+		}
+		return 0;
 	}
 
 	if (mtk_gpio_get_direction(chip, offset))
@@ -907,7 +889,6 @@ static int mtk_gpio_get(struct gpio_chip *chip, unsigned offset)
 static int mtk_gpio_to_irq(struct gpio_chip *chip, unsigned offset)
 {
 #ifdef CONFIG_MTK_EIC
-	pr_debug("pinctrl mtk_gpio_to_irq pin=%d\n", offset);
 	return mt_gpio_to_irq(offset);
 #else
 	const struct mtk_desc_pin *pin;
@@ -983,7 +964,6 @@ static void __iomem *mtk_eint_get_offset(struct mtk_pinctrl *pctl,
 	return reg;
 }
 
-#ifndef CONFIG_MTK_EIC
 /*
  * mtk_can_en_debounce: Check the EINT number is able to enable debounce or not
  * @eint_num: the EINT number to setmtk_pinctrl
@@ -1026,7 +1006,6 @@ static unsigned int mtk_eint_get_mask(struct mtk_pinctrl *pctl,
 
 	return !!(readl(reg) & bit);
 }
-#endif
 
 static int mtk_eint_flip_edge(struct mtk_pinctrl *pctl, int hwirq)
 {
@@ -1085,14 +1064,14 @@ static int mtk_gpio_set_debounce(struct gpio_chip *chip, unsigned offset,
 	unsigned debounce)
 {
 #ifdef CONFIG_MTK_EIC
-	pr_debug("fwq pinctrl mtk_gpio_set_debounce pin=%d\n", offset);
 	mt_eint_set_hw_debounce(offset, debounce);
 	return 0;
 #else
 	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
 	int eint_num, virq, eint_offset;
 	unsigned int set_offset, bit, clr_bit, clr_offset, rst, i, unmask, dbnc;
-	static const unsigned int dbnc_arr[] = {0 , 1, 16, 32, 64, 128, 256};
+	static const unsigned int debounce_time[] = {500, 1000, 16000, 32000,
+						     64000, 128000, 256000};
 	const struct mtk_desc_pin *pin;
 	struct irq_data *d;
 
@@ -1110,9 +1089,9 @@ static int mtk_gpio_set_debounce(struct gpio_chip *chip, unsigned offset,
 	if (!mtk_eint_can_en_debounce(pctl, eint_num))
 		return -ENOSYS;
 
-	dbnc = ARRAY_SIZE(dbnc_arr);
-	for (i = 0; i < ARRAY_SIZE(dbnc_arr); i++) {
-		if (debounce <= dbnc_arr[i]) {
+	dbnc = ARRAY_SIZE(debounce_time);
+	for (i = 0; i < ARRAY_SIZE(debounce_time); i++) {
+		if (debounce <= debounce_time[i]) {
 			dbnc = i;
 			break;
 		}
@@ -1342,7 +1321,7 @@ static int mtk_driving_get(struct gpio_chip *chip, unsigned offset)
 {
 	const struct mtk_pin_drv_grp *pin_drv;
 	unsigned int val;
-	unsigned int bits, mask, shift;
+	unsigned int bits, mask;
 	const struct mtk_drv_group_desc *drv_grp;
 	struct mtk_pinctrl *pctl = dev_get_drvdata(chip->dev);
 
@@ -1356,13 +1335,13 @@ static int mtk_driving_get(struct gpio_chip *chip, unsigned offset)
 	drv_grp = pctl->devdata->grp_desc + pin_drv->grp;
 	bits = drv_grp->high_bit - drv_grp->low_bit + 1;
 	mask = BIT(bits) - 1;
-	shift = pin_drv->bit + drv_grp->low_bit;
-	mask <<= shift;
 	regmap_read(mtk_get_regmap(pctl, offset), pin_drv->offset, &val);
-	return ((val & mask) >> shift);
+	val = (val & (0xf << pin_drv->bit)) >> pin_drv->bit;
+	val = (val >> drv_grp->low_bit) & mask;
+	return drv_grp->min_drv + val * drv_grp->step;
 }
 
-static ssize_t mt_gpio_show_pin(struct device *dev, struct device_attribute *attr, char *buf)
+static int mt_gpio_show_pin(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int len = 0;
 	int bufLen = PAGE_SIZE;
@@ -1395,7 +1374,7 @@ static ssize_t mt_gpio_show_pin(struct device *dev, struct device_attribute *att
 	return len;
 }
 
-static ssize_t mt_gpio_store_pin(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+static int mt_gpio_store_pin(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
 	int pin, val;
 	int val_set;
@@ -1647,7 +1626,6 @@ static void mtk_eint_irq_handler(unsigned irq, struct irq_desc *desc)
 	chained_irq_enter(chip, desc);
 	for (eint_num = 0; eint_num < pctl->devdata->ap_num; eint_num += 32) {
 		status = readl(reg);
-		reg += 4;
 		while (status) {
 			offset = __ffs(status);
 			index = eint_num + offset;
@@ -1682,6 +1660,7 @@ static void mtk_eint_irq_handler(unsigned irq, struct irq_desc *desc)
 			if (index < pctl->devdata->db_cnt)
 				mtk_eint_debounce_process(pctl , index);
 		}
+		reg += 4;
 	}
 	chained_irq_exit(chip, desc);
 }

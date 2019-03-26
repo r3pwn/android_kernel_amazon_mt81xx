@@ -42,6 +42,7 @@
 /*----------------------------------------------------------------------------*/
 #define I2C_DRIVERID_BMA222 222
 /*----------------------------------------------------------------------------*/
+#define DEBUG 1
 /*----------------------------------------------------------------------------*/
 
 #define SW_CALIBRATION
@@ -1937,10 +1938,12 @@ static int bma222_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 
 	obj_i2c_data = obj;
 	obj->client = client;
+#ifdef CONFIG_MTK_I2C_EXTENSION
 #ifdef FPGA_EARLY_PORTING
 	obj->client->timing = 100;
 #else
 	obj->client->timing = 400;
+#endif
 #endif
 	new_client = obj->client;
 	i2c_set_clientdata(new_client, obj);

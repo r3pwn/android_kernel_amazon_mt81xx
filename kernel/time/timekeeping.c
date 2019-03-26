@@ -24,6 +24,11 @@
 #include <linux/pvclock_gtod.h>
 #include <linux/compiler.h>
 
+#ifdef CONFIG_SUSPEND_TIME
+#include <linux/slab.h>
+#include <linux/debugfs.h>
+#endif
+
 #include "tick-internal.h"
 #include "ntp_internal.h"
 #include "timekeeping_internal.h"
@@ -65,6 +70,27 @@ int __read_mostly timekeeping_suspended;
 
 /* Flag for if there is a persistent clock on this platform */
 bool __read_mostly persistent_clock_exist = false;
+
+/* suspend time bins to be exported in debug fs */
+#ifdef CONFIG_SUSPEND_TIME
+#define MAX_SUSP_CYCLES		(512)
+struct suspend_cycles {
+	ktime_t *suspend_cyc;
+	ktime_t *resume_cyc;
+	struct timespec suspend_total_time;
+	unsigned int idx;
+	struct wakeup_source ws;
+};
+
+static struct suspend_cycles cycles;
+
+typedef enum {
+        SYSTEM_SUSPEND,
+        SYSTEM_RESUME
+} cycles_type_t;
+
+static void timekeeping_record_susp_resume(cycles_type_t cyc_type);
+#endif
 
 static inline void tk_normalize_xtime(struct timekeeper *tk)
 {
@@ -1105,7 +1131,52 @@ void timekeeping_inject_sleeptime(struct timespec *delta)
 
 	/* signal hrtimers about time change */
 	clock_was_set();
+#ifdef CONFIG_SUSPEND_TIME
+	timekeeping_record_susp_resume(SYSTEM_RESUME);
+#endif
 }
+
+#ifdef CONFIG_SUSPEND_TIME
+/**
+ * timekeeping_record_susp_resume - records suspend cycle duration
+ *
+ * This is for tracking suspend times in /d/suspend_cycles which
+ * will be collected by batterystats and shown on the a timeline
+ * in bugreport for standby power analysis
+ *
+ * This to be called only from timekeeping suspend/resume syscore ops
+ * Hence the lack of any locks around cycles
+ */
+
+static void timekeeping_record_susp_resume(cycles_type_t cyc_type)
+{
+	struct timespec ts;
+	ktime_t suspend_time;
+
+	if (unlikely((cycles.suspend_cyc == NULL) ||
+			(cycles.resume_cyc == NULL)))
+		goto out;
+
+	if (unlikely(cycles.idx >= MAX_SUSP_CYCLES)) {
+		pr_warn("%s: suspend cycles overflow detected\n", __func__);
+		cycles.idx = 0;
+	}
+
+	get_monotonic_boottime(&ts);
+	if (cyc_type == SYSTEM_SUSPEND) {
+		cycles.suspend_cyc[cycles.idx] = timespec_to_ktime(ts);
+	} else if (cyc_type == SYSTEM_RESUME) {
+		cycles.resume_cyc[cycles.idx++] = timespec_to_ktime(ts);
+		suspend_time = ktime_sub(cycles.resume_cyc[cycles.idx - 1],
+					cycles.suspend_cyc[cycles.idx - 1]);
+		cycles.suspend_total_time = timespec_add(cycles.suspend_total_time,
+						ktime_to_timespec(suspend_time));
+	}
+
+out:
+	return;
+}
+#endif /* CONFIG_SUSPEND_TIME */
 
 /**
  * timekeeping_resume - Resumes the generic timekeeping subsystem.
@@ -1204,6 +1275,9 @@ static int timekeeping_suspend(void)
 	struct timespec tmp;
 
 	read_persistent_clock(&tmp);
+#ifdef CONFIG_SUSPEND_TIME
+	timekeeping_record_susp_resume(SYSTEM_SUSPEND);
+#endif
 	timekeeping_suspend_time = timespec_to_timespec64(tmp);
 
 	/*
@@ -1256,9 +1330,117 @@ static struct syscore_ops timekeeping_syscore_ops = {
 	.suspend	= timekeeping_suspend,
 };
 
+#ifdef CONFIG_SUSPEND_TIME
+static ssize_t suspend_total_time_read(struct file *file, char __user *buf,
+	size_t size, loff_t *pos)
+{
+	struct timespec sleep;
+
+	if (*pos)
+		return 0;
+
+	sleep = cycles.suspend_total_time;
+	*pos += snprintf(buf, size, "%lu.%03lu\n",
+		sleep.tv_sec, sleep.tv_nsec / NSEC_PER_MSEC);
+
+	return *pos;
+}
+
+static const struct file_operations suspend_total_time_debug_fops = {
+	.read = suspend_total_time_read,
+};
+
+static ssize_t suspend_cycles_clear(struct file *file, const char __user *buf,
+		size_t size, loff_t *pos)
+{
+	__pm_stay_awake(&cycles.ws);
+	cycles.idx = 0;
+	__pm_relax(&cycles.ws);
+
+	return size;
+}
+
+static int suspend_cycles_debug_show(struct seq_file *s, void *data)
+{
+	unsigned int i;
+
+	__pm_stay_awake(&cycles.ws);
+	seq_puts(s, "Suspend Cycles start - end\n");
+	seq_puts(s, "----------------------------\n");
+	for (i = 0; i < cycles.idx; i++) {
+		seq_printf(s, "%lld - %lld\n",
+			ktime_to_ms(cycles.suspend_cyc[i]),
+			ktime_to_ms(cycles.resume_cyc[i]));
+	}
+	__pm_relax(&cycles.ws);
+	return 0;
+}
+
+static int suspend_cycles_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, suspend_cycles_debug_show, NULL);
+}
+
+static const struct file_operations suspend_cycles_debug_fops = {
+	.open		= suspend_cycles_debug_open,
+	.read		= seq_read,
+	.write		= suspend_cycles_clear,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+#endif /* CONFIG_SUSPEND_TIME */
+
 static int __init timekeeping_init_ops(void)
 {
+#ifdef CONFIG_SUSPEND_TIME
+	struct dentry *d1, *d2;
+#endif /* CONFIG_SUSPEND_TIME */
+
 	register_syscore_ops(&timekeeping_syscore_ops);
+
+#ifdef CONFIG_SUSPEND_TIME
+	d1 = debugfs_create_file("suspend_total_time", 0644, NULL, NULL,
+		&suspend_total_time_debug_fops);
+	if (!d1) {
+		pr_warn("Failed to create suspend_total_time debug file\n");
+		goto out;
+	}
+
+	/* Let anyone read/write to the file */
+	d2 = debugfs_create_file("suspend_cycles", 0666, NULL, NULL,
+			&suspend_cycles_debug_fops);
+	if (!d2) {
+		pr_warn("Failed to create suspend_cycles debug file\n");
+		goto out1;
+	}
+
+	cycles.suspend_cyc = kzalloc((sizeof(ktime_t) * MAX_SUSP_CYCLES),
+			GFP_KERNEL);
+	if (!cycles.suspend_cyc) {
+		pr_warn("kzalloc cycles.suspend_cyc fail\n");
+		goto out2;
+	}
+	cycles.resume_cyc = kzalloc((sizeof(ktime_t) * MAX_SUSP_CYCLES),
+			GFP_KERNEL);
+	if (!cycles.resume_cyc) {
+		pr_warn("kzalloc cycles.resume_cyc fail\n");
+		goto out3;
+	}
+
+	cycles.idx = 0;
+	wakeup_source_init(&cycles.ws, "susp-cyc-counter");
+	return 0;
+
+out3:
+	kfree(cycles.suspend_cyc);
+out2:
+	debugfs_remove(d2);
+out1:
+	debugfs_remove(d1);
+out:
+#endif
+
 	return 0;
 }
 device_initcall(timekeeping_init_ops);

@@ -1,29 +1,4 @@
-/*
-* Copyright(C)2014 MediaTek Inc.
-* Modification based on code covered by the below mentioned copyright
-* and/or permission notice(S).
-*/
-
-/*****************************************************************************
- *
- * Copyright (c) 2014 mCube, Inc.  All rights reserved.
- *
- * This source is subject to the mCube Software License.
- * This software is protected by Copyright and the information and source code
- * contained herein is confidential. The software including the source code
- * may not be copied and the information contained herein may not be used or
- * disclosed except with the written permission of mCube Inc.
- *
- * All other rights reserved.
- *
- * This code and information are provided "as is" without warranty of any
- * kind, either expressed or implied, including but not limited to the
- * implied warranties of merchantability and/or fitness for a
- * particular purpose.
- *
- * The following software/firmware and/or related documentation ("mCube Software")
- * have been modified by mCube Inc. All revisions are subject to any receiver's
- * applicable license agreements with mCube Inc.
+/* mc3410 accelerometer sensor driver
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -34,8 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- *
- *****************************************************************************/
+ */
 
 /*****************************************************************************
  *** HEADER FILES
@@ -216,6 +190,7 @@ static const struct of_device_id accel_of_match[] = {
 	{},
 };
 #endif
+extern unsigned int idme_get_sensorcal(s16 *data);
 static const struct i2c_device_id mc3xxx_i2c_id[] = { {MC3XXX_DEV_NAME, 0}, {} };
 /* static struct i2c_board_info __initdata mc3xxx_i2c_board_info = { I2C_BOARD_INFO(MC3XXX_DEV_NAME, 0x4C) }; */
 static unsigned short mc3xxx_i2c_auto_probe_addr[] = { 0x4C, 0x6C, 0x4E, 0x6D, 0x6E, 0x6F };
@@ -1192,6 +1167,11 @@ static int	MC3XXX_ReadData(struct i2c_client *pt_i2c_client, s16 waData[MC3XXX_A
 	#endif
 	struct mc3xxx_i2c_data   *_pt_i2c_obj = ((struct mc3xxx_i2c_data *) i2c_get_clientdata(pt_i2c_client));
 
+	if (atomic_read(&_pt_i2c_obj->suspend)) {
+		GSE_ERR("Chip is in suspend mode, skip!!\n");
+		return -EINVAL;
+	}
+
 	if (atomic_read(&_pt_i2c_obj->trace) & MCUBE_TRC_INFO)
 		GSE_LOG("[%s] s_nIsRBM_Enabled: %d\n", __func__, s_nIsRBM_Enabled);
 
@@ -1823,6 +1803,11 @@ static int MC3XXX_ReadSensorData(struct i2c_client *pt_i2c_client, char *pbBuf, 
 		return MC3XXX_RETCODE_ERROR_NULL_POINTER;
 	}
 
+	if (atomic_read(&_pt_i2c_obj->suspend)) {
+		GSE_ERR("Chip is in suspend mode, skip!!\n");
+		return -EINVAL;
+	}
+
 	if (false == mc3xxx_sensor_power) {
 		if (MC3XXX_RETCODE_SUCCESS != MC3XXX_SetPowerMode(pt_i2c_client, true))
 			GSE_ERR("ERR: fail to set power mode!\n");
@@ -1961,10 +1946,16 @@ static int _MC3XXX_ReadAverageData(struct i2c_client *client, char *buf)
  *****************************************/
 static int MC3XXX_ReadRawData(struct i2c_client *client, char *buf)
 {
+	struct mc3xxx_i2c_data *obj = i2c_get_clientdata(client);
 	int res = 0;
 
 	if (!buf || !client)
 		return -EINVAL;
+
+	if (atomic_read(&obj->suspend)) {
+		GSE_ERR("Chip is in suspend mode, skip!!\n");
+		return -EINVAL;
+	}
 
 	if (mc3xxx_sensor_power == false) {
 		res = MC3XXX_SetPowerMode(client, true);
@@ -2573,7 +2564,7 @@ static ssize_t store_chip_orientation(struct device_driver *ptDevDrv, const char
 		return 0;
 
 	ret = kstrtoint(pbBuf, 10, &_nDirection);
-	if (ret != 0) {
+	if (ret == 0) {
 		if (hwmsen_get_convert(_nDirection, &_pt_i2c_obj->cvt))
 			GSE_ERR("ERR: fail to set direction\n");
 	}
@@ -3433,6 +3424,8 @@ static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 	struct acc_control_path ctl = {0};
 	struct acc_data_path data = {0};
 	int err = 0;
+	s16 idmedata[6] = {0};
+	int cali_last[3] = {0, 0, 0};
 
 	GSE_LOG("mc3xxx_i2c_probe\n");
 
@@ -3508,6 +3501,23 @@ static int mc3xxx_i2c_probe(struct i2c_client *client, const struct i2c_device_i
 		GSE_ERR("register acc data path err= %d\n", err);
 		goto exit_kfree;
 	}
+	idme_get_sensorcal(idmedata);
+
+	cali_last[0] = idmedata[0];
+	cali_last[1] = idmedata[1];
+	cali_last[2] = idmedata[2];
+
+	if((0 != idmedata[0]) || (0 != idmedata[1] ) || (0 != idmedata[2])){
+
+		mc3xxx_mutex_lock();
+		err = MC3XXX_WriteCalibration(client, cali_last);
+		mc3xxx_mutex_unlock();
+
+		if(err){
+			GSE_ERR("MC3XXX_WriteCalibration err= %d\n", err);
+		}
+	}
+
 	GSE_LOG("%s: OK\n", __func__);
 	s_nInitFlag = MC3XXX_INIT_SUCC;
 	return 0;
@@ -3608,7 +3618,6 @@ static void __exit mc3xxx_exit(void)
 module_init(mc3xxx_init);
 module_exit(mc3xxx_exit);
 /*----------------------------------------------------------------------------*/
+MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("mc3XXX G-Sensor Driver");
 MODULE_AUTHOR("Mediatek");
-MODULE_LICENSE("GPL");
-MODULE_VERSION(MC3XXX_DEV_DRIVER_VERSION);

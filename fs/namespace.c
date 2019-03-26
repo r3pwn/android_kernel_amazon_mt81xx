@@ -160,9 +160,60 @@ void mnt_release_group_id(struct mount *mnt)
 /*
  * vfsmount lock must be held for read
  */
+#ifdef CONFIG_UMOUNT_DEBUG
+
+struct mnt_user {
+	struct task_struct *task;
+	char name[TASK_COMM_LEN];
+	pid_t pid;
+	int count;
+	struct list_head entry;
+};
+
+static inline void record_count(struct mount *mnt, int n)
+{
+	struct mnt_user *pos, *new, *found = NULL;
+
+	spin_lock(&mnt_id_lock);
+
+	list_for_each_entry(pos, &mnt->mnt_user_list, entry) {
+		if (pos->task == current && !strcmp(pos->name, current->comm)
+			&& pos->pid == current->pid) {
+			found = pos;
+			break;
+		}
+	}
+
+	if (found) {
+		found->count += n;
+		goto out;
+	}
+
+	new = kzalloc(sizeof(struct mnt_user), GFP_ATOMIC);
+	if (!new) {
+		pr_err("[umount_dbg]can't allocate for new mnt_user\n");
+		goto out;
+	}
+
+	new->task = current;
+	new->pid = current->pid;
+	strncpy(new->name, current->comm, TASK_COMM_LEN - 1);
+	new->name[TASK_COMM_LEN - 1] = '\0';
+	new->count = n;
+	INIT_LIST_HEAD(&new->entry);
+	list_add(&new->entry, &mnt->mnt_user_list);
+
+out:
+	spin_unlock(&mnt_id_lock);
+}
+#endif
+
 static inline void mnt_add_count(struct mount *mnt, int n)
 {
 #ifdef CONFIG_SMP
+#ifdef CONFIG_UMOUNT_DEBUG
+	record_count(mnt, n);
+#endif
 	this_cpu_add(mnt->mnt_pcp->mnt_count, n);
 #else
 	preempt_disable();
@@ -210,6 +261,11 @@ static struct mount *alloc_vfsmnt(const char *name)
 		mnt->mnt_pcp = alloc_percpu(struct mnt_pcp);
 		if (!mnt->mnt_pcp)
 			goto out_free_devname;
+
+#ifdef CONFIG_UMOUNT_DEBUG
+		INIT_LIST_HEAD(&mnt->mnt_user_list);
+		record_count(mnt, 1);
+#endif
 
 		this_cpu_add(mnt->mnt_pcp->mnt_count, 1);
 #else
@@ -1531,6 +1587,10 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	struct mount *mnt;
 	int retval;
 	int lookup_flags = 0;
+#ifdef CONFIG_UMOUNT_DEBUG
+	int total_count = 0;
+	struct mnt_user *pos;
+#endif
 
 	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
 		return -EINVAL;
@@ -1557,6 +1617,22 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 		goto dput_and_out;
 
 	retval = do_umount(mnt, flags);
+#ifdef CONFIG_UMOUNT_DEBUG
+	if (retval == -EBUSY) {
+		pr_err("[umount_dbg]%s busy, (0x%p,%d)\n", mnt->mnt_devname, mnt, mnt_get_count(mnt));
+
+		spin_lock(&mnt_id_lock);
+
+		list_for_each_entry(pos, &mnt->mnt_user_list, entry) {
+			total_count += pos->count;
+			if (pos->count)
+				pr_err("[umount_dbg]PID=%d, Name=%s, Count=%d\n", pos->pid, pos->name, pos->count);
+		}
+
+		spin_unlock(&mnt_id_lock);
+		pr_err("[umount_dbg] total_count=%d\n", total_count);
+	}
+#endif
 dput_and_out:
 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
 	dput(path.dentry);

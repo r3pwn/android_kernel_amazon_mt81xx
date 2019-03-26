@@ -2,7 +2,6 @@
 #define __SMI_COMMON_H__
 
 #include <aee.h>
-#include "smi_configuration.h"
 #ifdef CONFIG_MTK_CMDQ
 #include "cmdq_core.h"
 #endif
@@ -52,19 +51,15 @@
 /* when the corrosponding larb is not exist */
 /* extern unsigned int gLarbBaseAddr[SMI_LARB_NR]; */
 extern unsigned long get_larb_base_addr(int larb_id);
-
-/* extern char *smi_port_name[][21]; */
+extern char *smi_port_name[][21];
 /* for slow motion force 30 fps */
 extern int primary_display_force_set_vsync_fps(unsigned int fps);
 extern unsigned int primary_display_get_fps(void);
+extern void smi_dumpDebugMsg(void);
 extern void smi_client_status_change_notify(int module, int mode);
-extern void smi_dumpLarb(unsigned int index);
-extern void smi_dumpCommon(void);
-/* void register_base_dump(void); */
+extern void SMI_DBG_Init(void);
+void register_base_dump(void);
 
-extern struct SMI_PROFILE_CONFIG smi_profile_config[SMI_PROFILE_CONFIG_NUM];
-extern void smi_set_nonconstant_variable(void);
-extern void save_default_common_val(int *is_default_value_saved, unsigned int *default_val_smi_array);
-extern int smi_bus_regs_setting(int profile, struct SMI_SETTING *settings);
+
 
 #endif

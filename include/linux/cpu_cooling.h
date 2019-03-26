@@ -61,6 +61,8 @@ of_cpufreq_cooling_register(struct device_node *np,
 void cpufreq_cooling_unregister(struct thermal_cooling_device *cdev);
 
 unsigned long cpufreq_cooling_get_level(unsigned int cpu, unsigned int freq);
+unsigned int cpufreq_cooling_get_frequency(unsigned int cpu,
+					   unsigned long level);
 #else /* !CONFIG_CPU_THERMAL */
 static inline struct thermal_cooling_device *
 cpufreq_cooling_register(const struct cpumask *clip_cpus)

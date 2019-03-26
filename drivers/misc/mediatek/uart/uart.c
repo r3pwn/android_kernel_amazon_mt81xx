@@ -1093,8 +1093,11 @@ static int mtk_uart_vfifo_create(struct mtk_uart *uart)
 		return err;
 	}
 
+	MSG_RAW("[UART%2d] create\n", uart->nport);
+
 	for (idx = uart->nport * 2; idx < uart->nport * 2 + 2; idx++) {
 		vfifo = &mtk_uart_vfifo_port[idx];
+		MSG_RAW("[UART%2d] idx=%2d\n", uart->nport, idx);
 		if (vfifo->size) {
 			vfifo->addr = dma_alloc_coherent(uart->port.dev, vfifo->size, &vfifo->dmahd, GFP_DMA);
 			/* MSG_RAW("Address: virt = 0x%p, phys = 0x%llx\n", vfifo->addr, vfifo->dmahd); */
@@ -1182,15 +1185,14 @@ static struct mtk_uart_vfifo *mtk_uart_vfifo_alloc(struct mtk_uart *uart, UART_V
 
 	MSG(INFO, "(%d, %d)", uart->nport, type);
 
-	if ((uart->nport >= (ARRAY_SIZE(mtk_uart_vfifo_port) / 2)) || (type >= UART_VFIFO_NUM))
+	if ((uart->nport >= UART_NR) || (type >= UART_VFIFO_NUM))
 		vfifo = NULL;
 	else
 		vfifo = &mtk_uart_vfifo_port[2 * uart->nport + type];
 
 	if (vfifo && vfifo->addr == NULL)
 		vfifo = NULL;
-	if (vfifo)
-		MSG(INFO, "alloc vfifo-%d[%d](%p)\n", uart->nport, vfifo->size, vfifo->addr);
+	MSG(INFO, "alloc vfifo-%d[%d](%p)\n", uart->nport, vfifo->size, vfifo->addr);
 
 	spin_unlock_irqrestore(&mtk_uart_vfifo_port_lock, flags);
 	return vfifo;
@@ -1478,9 +1480,7 @@ static void mtk_uart_rx_chars(struct mtk_uart *uart)
 	int max_count = UART_FIFO_SIZE;
 	unsigned int data_byte, status;
 	unsigned int flag;
-	unsigned long flags;
 
-	spin_lock_irqsave(&port->lock, flags);
 	/* MSG_FUNC_ENTRY(); */
 	while (max_count-- > 0) {
 
@@ -1546,16 +1546,14 @@ static void mtk_uart_rx_chars(struct mtk_uart *uart)
 	}
 	tty_flip_buffer_push(TTY_FLIP_ARG(tty));
 	update_history_time(0, uart->nport);
-	spin_unlock_irqrestore(&port->lock, flags);
+
 	MSG(FUC, "%s (%2d)\n", __func__, UART_FIFO_SIZE - max_count - 1);
-/*
 #if defined(CONFIG_MTK_HDMI_SUPPORT)
 #ifdef MHL_UART_SHARE_PIN
 	if ((UART_FIFO_SIZE - max_count - 1) > 0)
 		hdmi_force_on(UART_FIFO_SIZE - max_count - 1);
 #endif
 #endif
-*/
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1636,13 +1634,8 @@ static void mtk_uart_rx_handler(struct mtk_uart *uart, int intrs)
 /*---------------------------------------------------------------------------*/
 void mtk_uart_tx_handler(struct mtk_uart *uart)
 {
-	struct uart_port *port = &uart->port;
-	unsigned long flags;
-
 	if (uart->tx_mode == UART_NON_DMA) {
-		spin_lock_irqsave(&port->lock, flags);
 		mtk_uart_tx_chars(uart);
-		spin_unlock_irqrestore(&port->lock, flags);
 	} else if (uart->tx_mode == UART_TX_VFIFO_DMA) {
 		tasklet_schedule(&uart->dma_tx.tasklet);
 	}
@@ -1669,19 +1662,19 @@ static const char * const interrupt[] = { "Modem Status Chg", "Tx Buffer Empty",
 /* static __tcmfunc irqreturn_t mtk_uart_irq(int irq, void *dev_id) */
 static irqreturn_t mtk_uart_irq(int irq, void *dev_id)
 {
+	unsigned long flags;
 	unsigned int intrs, timeout = 0;
 	struct mtk_uart *uart = (struct mtk_uart *)dev_id;
 
 #ifndef CONFIG_FIQ_DEBUGGER
 #ifdef CONFIG_MT_PRINTK_UART_CONSOLE
-	unsigned long base;
-
-	base = uart->base;
+	unsigned long base = uart->base;
 	if ((uart == console_port) && (UART_READ32(UART_LSR) & 0x01))
 		printk_disable_uart = 0;
 #endif
 #endif
 
+	spin_lock_irqsave(&uart->port.lock, flags);
 	intrs = mtk_uart_get_interrupt(uart);
 
 #ifdef ENABLE_DEBUG
@@ -1698,8 +1691,10 @@ static irqreturn_t mtk_uart_irq(int irq, void *dev_id)
 #endif
 	intrs &= UART_IIR_INT_MASK;
 
-	if (intrs == UART_IIR_NO_INT_PENDING)
+	if (intrs == UART_IIR_NO_INT_PENDING) {
+		spin_unlock_irqrestore(&uart->port.lock, flags);
 		return IRQ_HANDLED;
+	}
 
 	/* pr_debug("[UART%d] intrs:0x%x\n", uart->nport, intrs); */
 	if (intrs == UART_IIR_CTI)
@@ -1711,6 +1706,8 @@ static irqreturn_t mtk_uart_irq(int irq, void *dev_id)
 
 	mtk_uart_intr_last_check(uart, intrs);
 	mtk_uart_rx_handler(uart, intrs);
+	spin_unlock_irqrestore(&uart->port.lock, flags);
+
 	return IRQ_HANDLED;
 }
 
@@ -2468,7 +2465,7 @@ static int mtk_uart_pm_suspend(struct device *device)
 {
 	struct platform_device *pdev;
 
-	/*pr_debug("calling %s()\n", __func__);*/
+	pr_debug("calling %s()\n", __func__);
 
 	pdev = to_platform_device(device);
 	BUG_ON(pdev == NULL);
@@ -2480,7 +2477,7 @@ static int mtk_uart_pm_resume(struct device *device)
 {
 	struct platform_device *pdev;
 
-	/*pr_debug("calling %s()\n", __func__);*/
+	pr_debug("calling %s()\n", __func__);
 
 	pdev = to_platform_device(device);
 	BUG_ON(pdev == NULL);
@@ -2545,7 +2542,7 @@ static int mtk_uart_pm_restore_noirq(struct device *device)
 
 	uart = dev_get_drvdata(device);
 	if (!uart || !uart->setting) {
-		pr_warn("[%s] uart or uart->setting is null!!\n", __func__);
+		pr_warn("[%s] uart (%p) or uart->setting (%p) is null!!\n", __func__, uart, uart->setting);
 		return 0;
 	}
 	mtk_uart_fifo_set_trig(uart, uart->tx_trig, uart->rx_trig);
@@ -2839,18 +2836,17 @@ int request_uart_to_sleep(void)
 	unsigned long base;
 
 	for (uart_idx = 0; uart_idx < UART_NR; uart_idx++) {
-		/*
 #if defined(CONFIG_MTK_HDMI_SUPPORT)
 #ifdef MHL_UART_SHARE_PIN
 		{
-			for K2 uart2 and mhl share pin,
-			if mhl is in low power mode, uart rx is not working, so bypass it.
+			/* for K2 uart2 and mhl share pin,
+			* if mhl is in low power mode, uart rx is not working, so bypass it. */
 			if ((is_hdmi_active() == 0) && (uart_idx == 1))
 				continue;
 		}
 #endif
 #endif
-		*/
+
 		uart = &mtk_uarts[uart_idx];
 		base = uart->base;
 		if (uart->poweron_count > 0) {
@@ -2862,8 +2858,7 @@ int request_uart_to_sleep(void)
 			while (!(UART_READ32(UART_SLEEP_ACK) & UART_CLK_OFF_ACK)) {
 				if (i++ >= WAIT_UART_ACK_TIMES) {
 					reg_sync_writel(val1, UART_SLEEP_REQ);
-					pr_err_ratelimited("[UART]CANNOT GET UART[%d] SLEEP ACK\n",
-							uart_idx);
+					pr_err("[UART]CANNOT GET UART[%d] SLEEP ACK\n", uart_idx);
 					/* dump_uart_reg(); */
 					return -EBUSY;
 				}

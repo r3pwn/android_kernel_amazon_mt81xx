@@ -4,6 +4,7 @@
 #include <linux/ioctl.h>
 #include <mt-plat/charging.h>
 #include <linux/time.h>
+
 /*****************************************************************************
  *  BATTERY VOLTAGE
  ****************************************************************************/
@@ -18,14 +19,13 @@
 #define SHUTDOWN_SYSTEM_VOLTAGE		(3400)
 #endif
 
+/* Precise Tunning */
+#define BATTERY_AVERAGE_DATA_NUMBER	3
+#define BATTERY_AVERAGE_SIZE	30
+
 /*****************************************************************************
  *  BATTERY TIMER
  ****************************************************************************/
-/* #define MAX_CHARGING_TIME             1*60*60         // 1hr */
-/* #define MAX_CHARGING_TIME                   8*60*60   // 8hr */
-/* #define MAX_CHARGING_TIME                   12*60*60  // 12hr */
-#define MAX_CHARGING_TIME                   (24*60*60)	/* 24hr */
-
 #define MAX_POSTFULL_SAFETY_TIME		(1*30*60)/* 30mins */
 #define MAX_PreCC_CHARGING_TIME		(1*30*60)/* 0.5hr */
 
@@ -68,12 +68,10 @@
  ****************************************************************************/
 typedef unsigned int WORD;
 
-
 typedef enum {
 	PMU_STATUS_OK = 0,
 	PMU_STATUS_FAIL = 1,
 } PMU_STATUS;
-
 
 typedef enum {
 	USB_SUSPEND = 0,
@@ -118,28 +116,20 @@ typedef enum {
 } temp_state_enum;
 
 
-#define TEMP_POS_60_THRESHOLD  50
-#define TEMP_POS_60_THRES_MINUS_X_DEGREE 47
+#define TEMP_POS_60_THRESHOLD  60
+#define TEMP_POS_60_THRES_MINUS_X_DEGREE 60
 
 #define TEMP_POS_45_THRESHOLD  45
-#define TEMP_POS_45_THRES_MINUS_X_DEGREE 39
+#define TEMP_POS_45_THRES_MINUS_X_DEGREE 45
 
-#define TEMP_POS_10_THRESHOLD  10
-#define TEMP_POS_10_THRES_PLUS_X_DEGREE 16
+#define TEMP_POS_10_THRESHOLD  14
+#define TEMP_POS_10_THRES_PLUS_X_DEGREE 14
 
 #define TEMP_POS_0_THRESHOLD  0
-#define TEMP_POS_0_THRES_PLUS_X_DEGREE 6
+#define TEMP_POS_0_THRES_PLUS_X_DEGREE 0
 
-#ifdef CONFIG_MTK_FAN5405_SUPPORT
-#define TEMP_NEG_10_THRESHOLD  0
-#define TEMP_NEG_10_THRES_PLUS_X_DEGREE  0
-#elif defined(CONFIG_MTK_BQ24158_SUPPORT)
-#define TEMP_NEG_10_THRESHOLD  0
-#define TEMP_NEG_10_THRES_PLUS_X_DEGREE  0
-#else
-#define TEMP_NEG_10_THRESHOLD  0
-#define TEMP_NEG_10_THRES_PLUS_X_DEGREE  0
-#endif
+#define TEMP_NEG_10_THRESHOLD  -10
+#define TEMP_NEG_10_THRES_PLUS_X_DEGREE  -10
 
 /*****************************************************************************
  *  Normal battery temperature state
@@ -150,39 +140,19 @@ typedef enum {
 	TEMP_POS_HIGH
 } batt_temp_state_enum;
 
-#ifndef BATTERY_BOOL
-#define BATTERY_BOOL
-typedef enum {
-	KAL_FALSE = 0,
-	KAL_TRUE  = 1,
-} kal_bool;
-#endif
-
-#ifndef BOOL
-typedef unsigned char  BOOL;
-#endif
-
-#ifndef FALSE
-  #define FALSE (0)
-#endif
-
-#ifndef TRUE
-  #define TRUE  (1)
-#endif
-
-
-
 /*****************************************************************************
  *  structure
  ****************************************************************************/
 typedef struct {
-	kal_bool bat_exist;
-	kal_bool bat_full;
+	bool bat_exist;
+	bool bat_full;
 	signed int bat_charging_state;
 	unsigned int bat_vol;
-	kal_bool bat_in_recharging_state;
+	bool bat_in_recharging_state;
+	u32 recharge_cnt;
 	unsigned int Vsense;
-	kal_bool charger_exist;
+	bool charger_exist;
+	u32 charger_plugin_cnt;
 	unsigned int charger_vol;
 	signed int charger_protect_status;
 	signed int ICharging;
@@ -202,6 +172,9 @@ typedef struct {
 	unsigned int nPercent_ZCV;
 	unsigned int nPrecent_UI_SOC_check_point;
 	unsigned int ZCV;
+	bool aicl_done;
+	bool ap15_charger_detected;
+	int aicl_result;
 } PMU_ChargerStruct;
 
 struct battery_custom_data {
@@ -219,6 +192,9 @@ struct battery_custom_data {
 	int min_charge_temperature_plus_x_degree;
 	int err_charge_temperature;
 
+	/* Charging Time Protection*/
+	int max_charging_time;
+
 	/* Linear Charging Threshold */
 	int v_pre2cc_thres;
 	int v_cc2topoff_thres;
@@ -233,6 +209,7 @@ struct battery_custom_data {
 	int usb_charger_current;
 	int ac_charger_input_current;
 	int ac_charger_current;
+	int non_std_ac_charger_input_current;
 	int non_std_ac_charger_current;
 	int charging_host_charger_current;
 	int apple_0_5a_charger_current;
@@ -255,6 +232,7 @@ struct battery_custom_data {
 	int npercent_tracking_time;
 	int sync_to_real_tracking_time;
 	int v_0percent_tracking;
+	int system_off_voltage;
 
 	/* Battery Notify
 	   int battery_notify_case_0001_vcharger;
@@ -293,12 +271,28 @@ struct battery_custom_data {
 	int mtk_pump_express_plus_support;
 	int ta_start_battery_soc;
 	int ta_stop_battery_soc;
-	int ta_ac_12v_input_current;
 	int ta_ac_9v_input_current;
 	int ta_ac_7v_input_current;
 	int ta_ac_charging_current;
-	int ta_12v_support;
 	int ta_9v_support;
+
+	/* SW AICL detection */
+	bool aicl_enable;
+	int aicl_charging_current_max;
+	int aicl_input_current_max;
+	int aicl_input_current_min;
+	int aicl_step_current;
+	int aicl_step_interval;
+	int aicl_vbus_valid;
+	int aicl_vbus_state_phase;
+
+	/* SW AICL for non-dock mode */
+	int ap15_charger_input_current_max;
+	int ap15_charger_input_current_min;
+
+	/* SW AICL for dock mode */
+	int ap15_dock_input_current_max;
+	int ap15_dock_input_current_min;
 };
 
 /*****************************************************************************
@@ -307,14 +301,18 @@ struct battery_custom_data {
 extern PMU_ChargerStruct BMT_status;
 extern struct battery_custom_data batt_cust_data;
 extern CHARGING_CONTROL battery_charging_control;
-extern kal_bool g_ftm_battery_flag;
+extern bool g_ftm_battery_flag;
 extern int charging_level_data[1];
-extern kal_bool g_call_state;
-extern kal_bool g_charging_full_reset_bat_meter;
+extern unsigned int g_call_state;
+extern bool g_charging_full_reset_bat_meter;
+extern signed int g_custom_charging_current;
+extern signed int g_custom_charging_cv;
+extern unsigned int g_custom_charging_mode;
+
 #if defined(CONFIG_MTK_PUMP_EXPRESS_SUPPORT) || defined(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT)
-extern kal_bool ta_check_chr_type;
-extern kal_bool ta_cable_out_occur;
-extern kal_bool is_ta_connect;
+extern bool ta_check_chr_type;
+extern bool ta_cable_out_occur;
+extern bool is_ta_connect;
 extern struct wake_lock TA_charger_suspend_lock;
 #endif
 
@@ -323,8 +321,8 @@ extern struct wake_lock TA_charger_suspend_lock;
  ****************************************************************************/
 extern void charging_suspend_enable(void);
 extern void charging_suspend_disable(void);
-extern kal_bool bat_is_charger_exist(void);
-extern kal_bool bat_is_charging_full(void);
+extern bool bat_is_charger_exist(void);
+extern bool bat_is_charging_full(void);
 extern unsigned int bat_get_ui_percentage(void);
 extern unsigned int get_charging_setting_current(void);
 extern unsigned int bat_is_recharging_phase(void);
@@ -332,10 +330,6 @@ extern void do_chrdet_int_task(void);
 extern void set_usb_current_unlimited(bool enable);
 extern bool get_usb_current_unlimited(void);
 extern CHARGER_TYPE mt_get_charger_type(void);
-
-#if defined(CONFIG_MTK_HAFG_20)
-extern struct timespec mt_battery_get_duration_time_act(BATTERY_TIME_ENUM duration_type);
-#endif
 
 extern unsigned int mt_battery_get_duration_time(BATTERY_TIME_ENUM duration_type);
 extern void mt_battery_update_time(struct timespec *pre_time, BATTERY_TIME_ENUM duration_type);
@@ -359,13 +353,12 @@ extern PMU_STATUS do_jeita_state_machine(void);
 #define wake_up_bat2()			do {} while (0)
 #define wake_up_bat3()			do {} while (0)
 
-
 #define BAT_Get_Battery_Voltage(polling_mode)	({ 0; })
 
 #endif
 
 #ifdef CONFIG_MTK_POWER_EXT_DETECT
-extern kal_bool bat_is_ext_power(void);
+extern bool bat_is_ext_power(void);
 #endif
 
 extern int g_platform_boot_mode;
@@ -378,26 +371,10 @@ extern void mt_usb_disconnect(void);
 #define mt_usb_disconnect() do { } while (0)
 #endif
 void check_battery_exist(void);
-#ifdef DLPT_POWER_OFF_EN
-	extern int dlpt_check_power_off(void);
-#endif
-#ifdef BATTERY_CDP_WORKAROUND
-extern kal_bool is_usb_rdy(void);
-#endif
+
+extern int get_bat_charging_current_limit(void);
+extern unsigned int set_bat_charging_current_limit(int current_limit);
+extern bool is_usb_rdy(void);
 extern unsigned int upmu_get_reg_value(unsigned int reg);
-
-
-/* usb header */
-extern bool mt_usb_is_device(void);
-#if defined(CONFIG_USB_MTK_HDRC) || defined(CONFIG_USB_MU3D_DRV)
-extern void mt_usb_connect(void);
-extern void mt_usb_disconnect(void);
-#else
-#define mt_usb_connect() do { } while (0)
-#define mt_usb_disconnect() do { } while (0)
-#endif
-
-
-
-
+extern bool pmic_chrdet_status(void);
 #endif				/* #ifndef BATTERY_COMMON_H */

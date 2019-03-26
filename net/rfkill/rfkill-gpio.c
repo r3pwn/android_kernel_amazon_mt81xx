@@ -26,6 +26,8 @@
 #include <linux/slab.h>
 #include <linux/acpi.h>
 #include <linux/gpio/consumer.h>
+#include <linux/delay.h>
+#include <linux/of_gpio.h>
 
 #include <linux/rfkill-gpio.h>
 
@@ -39,17 +41,39 @@ struct rfkill_gpio_data {
 	struct clk		*clk;
 
 	bool			clk_enabled;
+	int			poweron_delay;
+	int			poweroff_delay;
+	int			default_state;
 };
+
+static void rfkill_set_gpio(struct rfkill_gpio_data *rfkill, bool state)
+{
+	if (rfkill->shutdown_gpio != 0)
+		gpiod_set_value_cansleep(rfkill->shutdown_gpio, state);
+
+	if (rfkill->reset_gpio != 0)
+		gpiod_set_value_cansleep(rfkill->reset_gpio, state);
+
+	msleep(state ? rfkill->poweron_delay : rfkill->poweroff_delay);
+}
 
 static int rfkill_gpio_set_power(void *data, bool blocked)
 {
 	struct rfkill_gpio_data *rfkill = data;
 
-	if (!blocked && !IS_ERR(rfkill->clk) && !rfkill->clk_enabled)
-		clk_enable(rfkill->clk);
+	if (!blocked) {
+		if (rfkill->clk_enabled) {
+			/* Someone is trying to power on while the chip
+			 * is already powered, run a reset sequence
+			 */
+			rfkill_set_gpio(rfkill, 0);
 
-	gpiod_set_value_cansleep(rfkill->shutdown_gpio, !blocked);
-	gpiod_set_value_cansleep(rfkill->reset_gpio, !blocked);
+		} else if (!IS_ERR(rfkill->clk)) {
+			clk_enable(rfkill->clk);
+		}
+	}
+
+	rfkill_set_gpio(rfkill, !blocked);
 
 	if (blocked && !IS_ERR(rfkill->clk) && rfkill->clk_enabled)
 		clk_disable(rfkill->clk);
@@ -78,6 +102,21 @@ static int rfkill_gpio_acpi_probe(struct device *dev,
 	return 0;
 }
 
+static int rfkill_gpio_dt_probe(struct device *dev,
+				struct rfkill_gpio_data *rfkill)
+{
+	struct device_node *np = dev->of_node;
+
+	rfkill->name = np->name;
+	of_property_read_string(np, "rfkill-name", &rfkill->name);
+	of_property_read_u32(np, "rfkill-type", &rfkill->type);
+	of_property_read_u32(np, "poweron-delay", &rfkill->poweron_delay);
+	of_property_read_u32(np, "poweroff-delay", &rfkill->poweroff_delay);
+	of_property_read_u32(np, "default-state", &rfkill->default_state);
+
+	return 0;
+}
+
 static int rfkill_gpio_probe(struct platform_device *pdev)
 {
 	struct rfkill_gpio_platform_data *pdata = pdev->dev.platform_data;
@@ -91,6 +130,10 @@ static int rfkill_gpio_probe(struct platform_device *pdev)
 
 	if (ACPI_HANDLE(&pdev->dev)) {
 		ret = rfkill_gpio_acpi_probe(&pdev->dev, rfkill);
+		if (ret)
+			return ret;
+	} else if (&pdev->dev.of_node) {
+		ret = rfkill_gpio_dt_probe(&pdev->dev, rfkill);
 		if (ret)
 			return ret;
 	} else if (pdata) {
@@ -138,6 +181,9 @@ static int rfkill_gpio_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, rfkill);
 
+	/* Set default state */
+	rfkill_set_states(rfkill->rfkill_dev, rfkill->default_state, false);
+
 	dev_info(&pdev->dev, "%s device registered.\n", rfkill->name);
 
 	return 0;
@@ -166,6 +212,11 @@ static const struct acpi_device_id rfkill_acpi_match[] = {
 MODULE_DEVICE_TABLE(acpi, rfkill_acpi_match);
 #endif
 
+static const struct of_device_id rfkill_of_match[] = {
+	{ .compatible = "rfkill-gpio", },
+	{},
+};
+
 static struct platform_driver rfkill_gpio_driver = {
 	.probe = rfkill_gpio_probe,
 	.remove = rfkill_gpio_remove,
@@ -173,6 +224,7 @@ static struct platform_driver rfkill_gpio_driver = {
 		.name = "rfkill_gpio",
 		.owner = THIS_MODULE,
 		.acpi_match_table = ACPI_PTR(rfkill_acpi_match),
+		.of_match_table = of_match_ptr(rfkill_of_match),
 	},
 };
 

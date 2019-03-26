@@ -1,5 +1,5 @@
 /**
- * Copy of alps/vendor/mediatek/proprietary/hardware/dpframework/inc/DpDataType.h
+ * Copy of alps/vendor/mediatek/proprietary_mt8163/hardware/dpframework/inc/DpDataType.h
  * to decouple kernel code with android space code(GLP)
  * NOTICE:
  * MUST BE CONSISTENT WITH dpframework

@@ -19,7 +19,7 @@
 #endif
 #include "cmdq_sec_iwc_common.h"
 
-#ifdef CONFIG_MTK_SMI_EXT
+#ifdef CONFIG_MTK_SMI
 /* #define CMDQ_CONFIG_SMI (1) */
 #endif
 
@@ -207,6 +207,8 @@ typedef enum CMDQ_SEC_ADDR_METADATA_TYPE {
 	CMDQ_SAM_H_2_MVA = 1,	/* sec handle to sec MVA */
 	CMDQ_SAM_NMVA_2_MVA = 2,	/* map normal MVA to secure world */
 	CMDQ_SAM_DDP_REG_HDCP = 3,	/* DDP register needs to set opposite value when HDCP fail */
+	CMDQ_SAM_MEMSET_BUFFER = 4,	/*memset this specify buffer*/
+	CMDQ_SAM_NMVA2_MVA_REVERSE = 5, /* reverse map normal MVA to secure world */
 } CMDQ_SEC_ADDR_METADATA_TYPE;
 
 typedef struct cmdqSecAddrMetadataStruct {
@@ -215,6 +217,7 @@ typedef struct cmdqSecAddrMetadataStruct {
 
 	CMDQ_SEC_ADDR_METADATA_TYPE type;	/* [IN] addr handle type */
 	uint32_t baseHandle;	/* [IN]_h, secure address handle */
+	uint32_t blockOffset;   /* [IN]_b, block offset from handle(PA) to current block(plane) */
 	uint32_t offset;	/* [IN]_b, buffser offset to secure handle */
 	uint32_t size;		/* buffer size */
 	uint32_t port;		/* hw port id (i.e. M4U port id) */

@@ -38,31 +38,15 @@
 #ifndef CHARGING_H
 #define CHARGING_H
 
-#ifndef CONFIG_ARCH_MT8173
-#include <mach/mt_charging.h>
-#endif
-
 /* ============================================================ */
 /* define */
 /* ============================================================ */
-/*****************************************************************************
- *  Log
- ****************************************************************************/
-#define BAT_LOG_CRTI 1
-#define BAT_LOG_FULL 2
-
-#define battery_xlog_printk(num, fmt, args...) \
-do {\
-	if (Enable_BATDRV_LOG >= (int)num) \
-		pr_debug(fmt, ##args); \
-} while (0)
-
-#define battery_log(num, fmt, args...) \
-do {\
-	if (Enable_BATDRV_LOG >= (int)num) \
-		pr_debug(fmt, ##args); \
-} while (0)
-
+/* Battery Notify */
+#define BATTERY_NOTIFY_CASE_0001_VCHARGER
+#define BATTERY_NOTIFY_CASE_0002_VBATTEMP
+/* #define BATTERY_NOTIFY_CASE_0003_ICHARGING */
+/* #define BATTERY_NOTIFY_CASE_0004_VBAT */
+/* #define BATTERY_NOTIFY_CASE_0005_TOTAL_CHARGINGTIME */
 
 /* ============================================================ */
 /* ENUM */
@@ -92,17 +76,19 @@ typedef enum {
 	CHARGING_CMD_SET_ERROR_STATE,
 	CHARGING_CMD_DISO_INIT,
 	CHARGING_CMD_GET_DISO_STATE,
-	CHARGING_CMD_SET_VINDPM,
-	CHARGING_CMD_SET_VBUS_OVP_EN,
-	CHARGING_CMD_GET_BIF_VBAT,
-	CHARGING_CMD_SET_CHRIND_CK_PDN,
-	CHARGING_CMD_SW_INIT,
-	CHARGING_CMD_ENABLE_SAFETY_TIMER,
-	CHARGING_CMD_SET_HIZ_SWCHR,
-	CHARGING_CMD_GET_BIF_TBAT,
+	CHARGING_CMD_BOOST_ENABLE,
+	CHARGING_CMD_GET_FAULT_TYPE,
+	CHARGING_CMD_GET_SW_AICL_SUPPORT,
+	CHARGING_CMD_GET_VBUS_STAT,
 	CHARGING_CMD_NUMBER
 } CHARGING_CTRL_CMD;
 
+typedef enum {
+	VBUS_STAT_NONE = 0,
+	VBUS_STAT_SDP,
+	VBUS_STAT_AC,
+	VBUS_STAT_OTG,
+} VBUS_STAT_TYPE;
 
 typedef enum {
 	CHARGER_UNKNOWN = 0,
@@ -336,10 +322,7 @@ typedef enum {
 	BATTERY_VOLT_04_480000_V = 4480000,
 	BATTERY_VOLT_04_487500_V = 4487500,
 	BATTERY_VOLT_04_500000_V = 4500000,
-	BATTERY_VOLT_04_512500_V = 4512500,
 	BATTERY_VOLT_04_520000_V = 4520000,
-	BATTERY_VOLT_04_525000_V = 4525000,
-	BATTERY_VOLT_04_537500_V = 4537500,
 	BATTERY_VOLT_04_540000_V = 4540000,
 	BATTERY_VOLT_04_550000_V = 4550000,
 	BATTERY_VOLT_04_560000_V = 4560000,
@@ -473,7 +456,6 @@ typedef enum {
 	CHARGE_CURRENT_2900_00_MA = 290000,
 	CHARGE_CURRENT_3000_00_MA = 300000,
 	CHARGE_CURRENT_3100_00_MA = 310000,
-	CHARGE_CURRENT_3200_00_MA = 320000,
 	CHARGE_CURRENT_MAX
 } CHR_CURRENT_ENUM;
 
@@ -487,21 +469,10 @@ typedef enum {
 /* ============================================================ */
 typedef signed int(*CHARGING_CONTROL) (CHARGING_CTRL_CMD cmd, void *data);
 
-#ifndef BATTERY_BOOL
-#define BATTERY_BOOL
-typedef enum {
-	KAL_FALSE = 0,
-	KAL_TRUE  = 1,
-} kal_bool;
-#endif
-
-
 /* ============================================================ */
 /* External Variables */
 /* ============================================================ */
-extern int Enable_BATDRV_LOG;
-extern kal_bool chargin_hw_init_done;
-
+extern bool chargin_hw_init_done;
 
 /* ============================================================ */
 /* External function */
@@ -510,21 +481,17 @@ extern signed int chr_control_interface(CHARGING_CTRL_CMD cmd, void *data);
 extern unsigned int upmu_get_reg_value(unsigned int reg);
 extern void Charger_Detect_Init(void);
 extern void Charger_Detect_Release(void);
-extern int hw_charging_get_charger_type(void);
+extern CHARGER_TYPE hw_charger_type_detection(void);
 extern void mt_power_off(void);
 extern unsigned int mt6311_get_chip_id(void);
 extern int is_mt6311_exist(void);
 extern int is_mt6311_sw_ready(void);
-
-
-/*extern BATTERY_VOLTAGE_ENUM battery_get_cv_voltage(void);*/
-/*extern void battery_set_cv_voltage(BATTERY_VOLTAGE_ENUM cv);*/
-
-#if defined(CONFIG_MTK_SMART_BATTERY)
-extern kal_bool pmic_chrdet_status(void);
+#if defined(CONFIG_MTK_BQ25601_SUPPORT)
+extern bool is_bq25601_exist(void);
+extern signed int bq25601_control_interface(CHARGING_CTRL_CMD cmd, void *data);
 #else
-__weak kal_bool pmic_chrdet_status(void);
+static inline bool is_bq25601_exist(void) { return false; }
+static inline signed int bq25601_control_interface(CHARGING_CTRL_CMD cmd, void *data) { return 0; }
 #endif
-/*BCCT input current control function over switch charger*/
-extern unsigned int set_chr_input_current_limit(int current_limit);
+
 #endif				/* #ifndef _CHARGING_H */

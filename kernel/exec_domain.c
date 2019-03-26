@@ -68,7 +68,10 @@ lookup_exec_domain(unsigned int personality)
 				goto out;
 	}
 
-#ifdef CONFIG_MODULES
+#if 0
+	/* Triggered by old kernel code that never really worked.
+	 * Cause module_request SEpolicy violation - See DEE-33658
+	 */
 	read_unlock(&exec_domains_lock);
 	request_module("personality-%d", pers);
 	read_lock(&exec_domains_lock);
